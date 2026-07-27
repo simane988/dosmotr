@@ -333,6 +333,35 @@ class TrackerRepositoryTest {
     }
 
     @Test
+    fun `finished titles sink below the ones still being watched`() = runTest {
+        val repo = repository()
+        dao.seedTitle(tvTitle(id = "tv_active", status = WatchStatus.WATCHING, lastWatchedAt = 1))
+        dao.seedEpisodes(episodesFor("tv_active", mapOf(1 to 2)))
+        dao.seedTitle(tvTitle(id = "tv_finishing", status = WatchStatus.WATCHING, lastWatchedAt = 2))
+        dao.seedEpisodes(episodesFor("tv_finishing", mapOf(1 to 1)))
+
+        assertEquals("tv_finishing", repo.observeLibrary().first().first().title.id)
+
+        // Watching the last episode completes it, which must not park it on top.
+        repo.markNextWatched("tv_finishing")
+
+        val order = repo.observeLibrary().first().map { it.title.id }
+        assertEquals(listOf("tv_active", "tv_finishing"), order)
+    }
+
+    @Test
+    fun `dropped titles sit at the very bottom`() = runTest {
+        val repo = repository()
+        dao.seedTitle(tvTitle(id = "tv_dropped", status = WatchStatus.DROPPED, lastWatchedAt = 900))
+        dao.seedTitle(tvTitle(id = "tv_planned", status = WatchStatus.PLANNED))
+        dao.seedTitle(tvTitle(id = "tv_watching", status = WatchStatus.WATCHING))
+
+        val order = repo.observeLibrary().first().map { it.title.id }
+
+        assertEquals(listOf("tv_watching", "tv_planned", "tv_dropped"), order)
+    }
+
+    @Test
     fun `tracked ids expose what is already in the library`() = runTest {
         dao.seedTitle(tvTitle(id = "tv_1"))
         dao.seedTitle(movieTitle(id = "movie_2"))

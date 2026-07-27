@@ -19,8 +19,28 @@ private const val PROGRESS_SELECT = """
 @Dao
 interface TrackerDao {
 
+    /**
+     * Active titles first (see [WatchStatus.libraryOrder]), then most recently watched,
+     * then most recently added. Room cannot read the enum's field from SQL, so the order
+     * is spelled out here and pinned by a test.
+     */
     @Transaction
-    @Query("$PROGRESS_SELECT ORDER BY CASE WHEN t.lastWatchedAt IS NULL THEN 1 ELSE 0 END, t.lastWatchedAt DESC, t.addedAt DESC")
+    @Query(
+        """
+        $PROGRESS_SELECT
+        ORDER BY
+            CASE t.status
+                WHEN 'WATCHING' THEN 0
+                WHEN 'PLANNED' THEN 1
+                WHEN 'ON_HOLD' THEN 2
+                WHEN 'COMPLETED' THEN 3
+                ELSE 4
+            END,
+            CASE WHEN t.lastWatchedAt IS NULL THEN 1 ELSE 0 END,
+            t.lastWatchedAt DESC,
+            t.addedAt DESC
+        """
+    )
     fun observeLibrary(): Flow<List<TitleWithProgress>>
 
     @Transaction

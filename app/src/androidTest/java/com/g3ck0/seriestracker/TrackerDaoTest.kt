@@ -91,6 +91,54 @@ class TrackerDaoTest {
     }
 
     @Test
+    fun libraryPutsActiveTitlesFirst() = runTest {
+        // Deliberately seeded so that sorting by lastWatchedAt alone would invert this.
+        dao.upsertTitle(title(id = "dropped", status = WatchStatus.DROPPED, lastWatchedAt = 500))
+        dao.upsertTitle(title(id = "completed", status = WatchStatus.COMPLETED, lastWatchedAt = 400))
+        dao.upsertTitle(title(id = "onHold", status = WatchStatus.ON_HOLD, lastWatchedAt = 300))
+        dao.upsertTitle(title(id = "planned", status = WatchStatus.PLANNED, lastWatchedAt = 200))
+        dao.upsertTitle(title(id = "watching", status = WatchStatus.WATCHING, lastWatchedAt = 100))
+
+        val order = dao.observeLibrary().first().map { it.title.id }
+
+        assertEquals(listOf("watching", "planned", "onHold", "completed", "dropped"), order)
+    }
+
+    @Test
+    fun sqlOrderMatchesTheEnumOrder() = runTest {
+        // Guards the duplicated CASE in the query against the enum drifting away.
+        WatchStatus.entries.forEach { status ->
+            dao.upsertTitle(title(id = status.name, status = status, addedAt = 1))
+        }
+
+        val order = dao.observeLibrary().first().map { it.title.status }
+
+        assertEquals(WatchStatus.entries.sortedBy { it.libraryOrder }, order)
+    }
+
+    @Test
+    fun finishingASeriesMovesItBelowActiveOnes() = runTest {
+        dao.upsertTitle(title(id = "active", status = WatchStatus.WATCHING, lastWatchedAt = 1))
+        dao.upsertTitle(title(id = "justFinished", status = WatchStatus.WATCHING, lastWatchedAt = 2))
+        assertEquals("justFinished", dao.observeLibrary().first().first().title.id)
+
+        dao.setStatus("justFinished", WatchStatus.COMPLETED)
+
+        assertEquals("active", dao.observeLibrary().first().first().title.id)
+    }
+
+    @Test
+    fun watchedOrderStillAppliesWithinAStatus() = runTest {
+        dao.upsertTitle(title(id = "a", status = WatchStatus.WATCHING, lastWatchedAt = 10))
+        dao.upsertTitle(title(id = "b", status = WatchStatus.WATCHING, lastWatchedAt = 50))
+        dao.upsertTitle(title(id = "never", status = WatchStatus.WATCHING, addedAt = 99))
+
+        val order = dao.observeLibrary().first().map { it.title.id }
+
+        assertEquals(listOf("b", "a", "never"), order)
+    }
+
+    @Test
     fun deletingATitleCascadesToEpisodes() = runTest {
         dao.upsertTitle(title())
         dao.insertEpisodes(episodes("tv_1", 1, 3))

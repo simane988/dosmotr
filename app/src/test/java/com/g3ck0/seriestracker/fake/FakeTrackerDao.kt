@@ -55,9 +55,10 @@ class FakeTrackerDao : TrackerDao {
 
     override fun observeLibrary(): Flow<List<TitleWithProgress>> = observe { db ->
         db.titles
-            // Matches the SQL: watched titles first, newest watch on top, then newest added.
+            // Mirrors the SQL: active statuses first, then newest watch, then newest added.
             .sortedWith(
-                compareBy<TitleEntity> { it.lastWatchedAt == null }
+                compareBy<TitleEntity> { it.status.libraryOrder }
+                    .thenBy { it.lastWatchedAt == null }
                     .thenByDescending { it.lastWatchedAt ?: 0L }
                     .thenByDescending { it.addedAt }
             )

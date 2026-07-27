@@ -9,7 +9,21 @@ import androidx.room.PrimaryKey
 
 enum class MediaType { TV, MOVIE }
 
-enum class WatchStatus { WATCHING, PLANNED, COMPLETED, ON_HOLD, DROPPED }
+/**
+ * [libraryOrder] drives the library sort: what you are still going to watch comes first,
+ * finished and abandoned titles sink to the bottom. Freshly completing a series would
+ * otherwise push it to the very top, exactly when it stops being useful.
+ *
+ * The same order is hard-coded in `TrackerDao.observeLibrary`'s SQL — keep both in sync;
+ * `TrackerDaoTest.libraryPutsActiveTitlesFirst` fails if they drift apart.
+ */
+enum class WatchStatus(val libraryOrder: Int) {
+    WATCHING(0),
+    PLANNED(1),
+    ON_HOLD(2),
+    COMPLETED(3),
+    DROPPED(4),
+}
 
 /**
  * One tracked series or movie. [id] is stable and human-readable so a TMDB title
