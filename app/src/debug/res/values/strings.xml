@@ -1,0 +1,5 @@
+<resources>
+    <!-- Overrides the name from main/ only for debug builds, so the launcher shows
+         which of the two installed apps is the throwaway one. -->
+    <string name="app_name">Досмотр debug</string>
+</resources>

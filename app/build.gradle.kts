@@ -9,16 +9,18 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// TMDB key lives in local.properties (never committed): tmdb.apiKey=xxxxxxxx
-val tmdbApiKey: String = run {
-    val propsFile = rootProject.file("local.properties")
-    if (propsFile.exists()) {
-        Properties().apply { propsFile.inputStream().use { load(it) } }
-            .getProperty("tmdb.apiKey", "")
-    } else {
-        ""
-    }
+// Secrets live in local.properties (never committed): the TMDB key and the release
+// signing credentials.
+val localProps = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
 }
+
+val tmdbApiKey: String = localProps.getProperty("tmdb.apiKey", "")
+
+val releaseStoreFile: File? = localProps.getProperty("release.storeFile")
+    ?.let { rootProject.file(it) }
+    ?.takeIf { it.exists() }
 
 android {
     // namespace is the Kotlin/R/BuildConfig package and stays put — renaming it would
@@ -41,11 +43,25 @@ android {
         buildConfigField("String", "TMDB_IMAGE_URL", "\"https://image.tmdb.org/t/p/\"")
     }
 
+    signingConfigs {
+        // Only registered when the keystore is actually present, so a fresh clone
+        // still builds (release just comes out unsigned).
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = localProps.getProperty("release.storePassword")
+                keyAlias = localProps.getProperty("release.keyAlias")
+                keyPassword = localProps.getProperty("release.keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
         }
         debug {
             applicationIdSuffix = ".debug"
