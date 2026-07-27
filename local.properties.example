@@ -1,0 +1,6 @@
+# Copy to local.properties and fill in.
+# sdk.dir points at your Android SDK (Android Studio writes it automatically).
+sdk.dir=/home/YOU/Android/Sdk
+
+# Free API key (v3 auth) from https://www.themoviedb.org/settings/api
+tmdb.apiKey=
