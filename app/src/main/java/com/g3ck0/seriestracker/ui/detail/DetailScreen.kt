@@ -1,6 +1,10 @@
 package com.g3ck0.seriestracker.ui.detail
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,12 +12,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,32 +27,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,17 +52,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.BasicTextField
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.g3ck0.seriestracker.data.local.EpisodeEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.ui.common.ClearFocusWhenDialogCloses
+import com.g3ck0.seriestracker.ui.common.DesignChip
+import com.g3ck0.seriestracker.ui.common.DesignDialog
+import com.g3ck0.seriestracker.ui.common.DialogTextButton
 import com.g3ck0.seriestracker.ui.common.Poster
+import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
 import com.g3ck0.seriestracker.ui.common.episodeCode
 import com.g3ck0.seriestracker.ui.common.formatMinutes
 import com.g3ck0.seriestracker.ui.common.label
@@ -85,8 +88,11 @@ object DetailTags {
     const val MOVIE_TOGGLE = "detail:movieToggle"
     const val NOTES = "detail:notes"
     const val NOTES_SAVE = "detail:notesSave"
+    const val NOTES_OPEN = "detail:notesOpen"
     const val REFRESHING = "detail:refreshing"
     const val NOT_FOUND = "detail:notFound"
+    const val TAB_OVERVIEW = "detail:tab:overview"
+    const val TAB_EPISODES = "detail:tab:episodes"
     fun statusChip(status: WatchStatus) = "detail:status:${status.name}"
     fun rating(value: Int) = "detail:rating:$value"
     fun seasonHeader(season: Int) = "detail:season:$season"
@@ -97,6 +103,9 @@ object DetailTags {
     fun episodeCheckbox(season: Int, episode: Int) = "detail:episodeCheck:$season:$episode"
     fun watchUpTo(season: Int, episode: Int) = "detail:upTo:$season:$episode"
 }
+
+/** Which half of the detail screen is on show. */
+enum class DetailTab { OVERVIEW, EPISODES }
 
 @Composable
 fun DetailScreen(
@@ -127,7 +136,7 @@ fun DetailScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DetailContent(
     state: DetailUiState,
@@ -147,6 +156,7 @@ fun DetailContent(
 ) {
     val snackbar = remember { SnackbarHostState() }
     var confirmDelete by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(DetailTab.OVERVIEW) }
     val expanded = remember { mutableStateMapOf<Int, Boolean>() }
 
     LaunchedEffect(state.message) {
@@ -166,150 +176,180 @@ fun DetailContent(
     ClearFocusWhenDialogCloses(confirmDelete)
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Удалить из библиотеки?") },
-            text = { Text("Прогресс просмотра будет потерян.") },
+        DesignDialog(
+            title = "Удалить из библиотеки?",
+            onDismiss = { confirmDelete = false },
+            content = { Text("Прогресс просмотра будет потерян.") },
             confirmButton = {
-                TextButton(
+                DialogTextButton(
+                    label = "Удалить",
+                    destructive = true,
                     onClick = { confirmDelete = false; onDelete() },
                     modifier = Modifier.testTag(DetailTags.CONFIRM_DELETE),
-                ) { Text("Удалить") }
+                )
             },
             dismissButton = {
-                TextButton(
+                DialogTextButton(
+                    label = "Отмена",
                     onClick = { confirmDelete = false },
                     modifier = Modifier.testTag(DetailTags.CANCEL_DELETE),
-                ) { Text("Отмена") }
+                )
             },
         )
     }
 
     val item = state.title
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = item?.title?.name ?: "",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().statusBarsPadding()) {
+                DetailTopBar(
+                    name = item?.title?.name.orEmpty(),
+                    canRefresh = item?.title?.tmdbId != null,
+                    onBack = onBack,
+                    onRefresh = onRefresh,
+                    onDelete = { confirmDelete = true },
+                )
+                if (state.refreshing) {
+                    LinearProgressIndicator(
+                        Modifier.fillMaxWidth().height(4.dp).testTag(DetailTags.REFRESHING)
                     )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.testTag(DetailTags.BACK)) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                }
+
+                if (item == null) {
+                    Box(
+                        Modifier.fillMaxSize().testTag(DetailTags.NOT_FOUND),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (!state.loading) Text("Тайтл не найден")
                     }
-                },
-                actions = {
-                    if (item?.title?.tmdbId != null) {
-                        IconButton(
-                            onClick = onRefresh,
-                            modifier = Modifier.testTag(DetailTags.REFRESH),
-                        ) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Обновить из TMDB")
+                    return@Column
+                }
+
+                val hasEpisodes = state.seasons.isNotEmpty()
+                val showOverview = !hasEpisodes || tab == DetailTab.OVERVIEW
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().testTag(DetailTags.LIST),
+                    contentPadding = PaddingValues(bottom = 48.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item(key = "header", contentType = "header") { Header(item) }
+
+                    if (hasEpisodes) {
+                        stickyHeader(key = "tabs") {
+                            TabSwitcher(
+                                selected = tab,
+                                onSelect = { tab = it },
+                            )
                         }
                     }
-                    IconButton(
-                        onClick = { confirmDelete = true },
-                        modifier = Modifier.testTag(DetailTags.DELETE),
-                    ) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Удалить")
+
+                    if (showOverview) {
+                        item(key = "status", contentType = "status") {
+                            StatusPicker(current = item.title.status, onSelect = onStatus)
+                        }
+                        item(key = "progress", contentType = "progress") {
+                            ProgressBlock(
+                                item = item,
+                                next = state.nextEpisode,
+                                onMarkNext = onMarkNext,
+                                onAll = { onSetAllWatched(true) },
+                                onNone = { onSetAllWatched(false) },
+                                onMovieWatched = onMovieWatched,
+                            )
+                        }
+                        item(key = "rating", contentType = "rating") {
+                            RatingPicker(rating = item.title.userRating, onSelect = onRating)
+                        }
+                        item(key = "notes", contentType = "notes") {
+                            NotesBlock(initial = item.title.notes, onSave = onNotes)
+                        }
+                    } else {
+                        state.seasons.forEach { season ->
+                            val isOpen = expanded[season.number] ?: false
+                            item(key = "season_${season.number}", contentType = "seasonHeader") {
+                                SeasonHeader(
+                                    number = season.number,
+                                    watchedCount = season.watchedCount,
+                                    total = season.episodes.size,
+                                    allWatched = season.allWatched,
+                                    expanded = isOpen,
+                                    onToggleExpand = { expanded[season.number] = !isOpen },
+                                    onToggleWatched = { onToggleSeason(season) },
+                                )
+                            }
+                            if (isOpen) {
+                                items(
+                                    items = season.episodes,
+                                    key = { "ep_${season.number}_${it.episodeNumber}" },
+                                    contentType = { "episode" },
+                                ) { episode ->
+                                    EpisodeRow(
+                                        episode = episode,
+                                        onToggle = onToggleEpisode,
+                                        onWatchUpTo = onWatchUpTo,
+                                    )
+                                }
+                            }
+                        }
                     }
-                },
+                }
+            }
+
+            SnackbarOverlay(
+                hostState = snackbar,
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
             )
-        },
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbar) },
-    ) { padding ->
-        if (item == null) {
-            Box(
-                Modifier.fillMaxSize().padding(padding).testTag(DetailTags.NOT_FOUND),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (!state.loading) Text("Тайтл не найден")
-            }
-            return@Scaffold
         }
+    }
+}
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).testTag(DetailTags.LIST),
-            contentPadding = PaddingValues(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (state.refreshing) {
-                item(key = "refreshing", contentType = "refreshing") {
-                    LinearProgressIndicator(
-                        Modifier.fillMaxWidth().testTag(DetailTags.REFRESHING)
-                    )
-                }
-            }
+@Composable
+private fun DetailTopBar(
+    name: String,
+    canRefresh: Boolean,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(64.dp).padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        BarIcon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", onBack, DetailTags.BACK)
+        Text(
+            text = name,
+            fontSize = 22.sp,
+            lineHeight = 28.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (canRefresh) {
+            BarIcon(Icons.Filled.Refresh, "Обновить из TMDB", onRefresh, DetailTags.REFRESH)
+        }
+        BarIcon(Icons.Filled.Delete, "Удалить", onDelete, DetailTags.DELETE)
+    }
+}
 
-            item(key = "header", contentType = "header") { Header(item) }
-
-            item(key = "status", contentType = "status") {
-                StatusPicker(current = item.title.status, onSelect = onStatus)
-            }
-
-            item(key = "rating", contentType = "rating") {
-                RatingPicker(rating = item.title.userRating, onSelect = onRating)
-            }
-
-            item(key = "progress", contentType = "progress") {
-                ProgressBlock(
-                    item = item,
-                    next = state.nextEpisode,
-                    onMarkNext = onMarkNext,
-                    onAll = { onSetAllWatched(true) },
-                    onNone = { onSetAllWatched(false) },
-                    onMovieWatched = onMovieWatched,
-                )
-            }
-
-            item(key = "notes", contentType = "notes") {
-                NotesBlock(initial = item.title.notes, onSave = onNotes)
-            }
-
-            if (state.seasons.isNotEmpty()) {
-                item(key = "episodesTitle", contentType = "sectionTitle") {
-                    Text(
-                        text = "Серии",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
-            }
-
-            state.seasons.forEach { season ->
-                val isOpen = expanded[season.number] ?: false
-                item(key = "season_${season.number}", contentType = "seasonHeader") {
-                    SeasonHeader(
-                        number = season.number,
-                        watchedCount = season.watchedCount,
-                        total = season.episodes.size,
-                        allWatched = season.allWatched,
-                        expanded = isOpen,
-                        onToggleExpand = { expanded[season.number] = !isOpen },
-                        onToggleWatched = { onToggleSeason(season) },
-                    )
-                }
-                if (isOpen) {
-                    items(
-                        items = season.episodes,
-                        key = { "ep_${season.number}_${it.episodeNumber}" },
-                        // One content type for every row, so scrolling reuses
-                        // composition slots instead of building each row from scratch.
-                        contentType = { "episode" },
-                    ) { episode ->
-                        EpisodeRow(
-                            episode = episode,
-                            onToggle = onToggleEpisode,
-                            onWatchUpTo = onWatchUpTo,
-                        )
-                    }
-                }
-            }
+@Composable
+private fun BarIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    onClick: () -> Unit,
+    tag: String,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.size(48.dp).testTag(tag),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = description)
         }
     }
 }
@@ -317,36 +357,40 @@ fun DetailContent(
 @Composable
 private fun Header(item: TitleWithProgress) {
     val title = item.title
-    Row(Modifier.padding(horizontal = 16.dp)) {
+    Row(
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         Poster(
             path = title.posterPath,
             title = title.name,
-            modifier = Modifier.width(110.dp).height(165.dp),
+            corner = 14,
+            modifier = Modifier.width(84.dp).height(126.dp),
         )
-        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(title.name, style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(4.dp))
+            Text(title.name, fontSize = 22.sp, lineHeight = 28.sp)
             Text(
                 text = listOfNotNull(title.mediaType.label, title.year).joinToString(" · "),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
             )
             title.tmdbRating?.takeIf { it > 0 }?.let {
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(top = 6.dp),
+                ) {
                     Icon(
                         Icons.Filled.Star,
                         contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.secondary,
                     )
-                    Spacer(Modifier.width(4.dp))
                     Text("%.1f TMDB".format(it), style = MaterialTheme.typography.bodySmall)
                 }
             }
             if (title.runtimeMinutes > 0) {
-                Spacer(Modifier.height(4.dp))
                 Text(
                     text = if (title.isMovie) {
                         formatMinutes(title.runtimeMinutes)
@@ -355,17 +399,74 @@ private fun Header(item: TitleWithProgress) {
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            if (title.overview.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = title.overview,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 6,
-                    overflow = TextOverflow.Ellipsis,
-                )
+        }
+    }
+}
+
+/** Segmented control that splits the screen into "Обзор" and "Серии". */
+@Composable
+private fun TabSwitcher(selected: DetailTab, onSelect: (DetailTab) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp)),
+        ) {
+            SegmentButton(
+                label = "Обзор",
+                selected = selected == DetailTab.OVERVIEW,
+                onClick = { onSelect(DetailTab.OVERVIEW) },
+                tag = DetailTags.TAB_OVERVIEW,
+                modifier = Modifier.weight(1f),
+            )
+            SegmentButton(
+                label = "Серии",
+                selected = selected == DetailTab.EPISODES,
+                onClick = { onSelect(DetailTab.EPISODES) },
+                tag = DetailTags.TAB_EPISODES,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SegmentButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    tag: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        modifier = modifier.height(40.dp).testTag(tag),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            if (selected) {
+                Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
             }
+            Text(text = label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -380,10 +481,10 @@ private fun StatusPicker(current: WatchStatus, onSelect: (WatchStatus) -> Unit) 
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         WatchStatus.entries.forEach { status ->
-            FilterChip(
+            DesignChip(
+                label = status.label,
                 selected = current == status,
                 onClick = { onSelect(status) },
-                label = { Text(status.label) },
                 modifier = Modifier.testTag(DetailTags.statusChip(status)),
             )
         }
@@ -393,9 +494,20 @@ private fun StatusPicker(current: WatchStatus, onSelect: (WatchStatus) -> Unit) 
 @Composable
 private fun RatingPicker(rating: Int?, onSelect: (Int?) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp)) {
-        Text("Моя оценка", style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.height(4.dp))
-        // All ten fit on a phone at this size, so no horizontal scroll is needed.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Моя оценка",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = rating?.let { "$it / 10" } ?: "не выставлена",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -403,21 +515,28 @@ private fun RatingPicker(rating: Int?, onSelect: (Int?) -> Unit) {
             (1..10).forEach { value ->
                 val selected = rating == value
                 Surface(
+                    // Tapping the current score clears it.
+                    onClick = { onSelect(if (selected) null else value) },
                     shape = RoundedCornerShape(8.dp),
-                    color = if (selected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    contentColor = if (selected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .height(36.dp)
-                        .testTag(DetailTags.rating(value))
-                        // Tapping the current score clears it.
-                        .clickable { onSelect(if (selected) null else value) },
+                        .testTag(DetailTags.rating(value)),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = value.toString(),
-                            color = if (selected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelLarge,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                         )
                     }
@@ -436,31 +555,37 @@ private fun ProgressBlock(
     onNone: () -> Unit,
     onMovieWatched: (Boolean) -> Unit,
 ) {
-    ElevatedCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+    ) {
         Column(Modifier.padding(16.dp)) {
             if (item.title.isMovie) {
                 Text(
                     text = if (item.title.movieWatched) "Фильм просмотрен" else "Фильм не просмотрен",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
                 )
                 Spacer(Modifier.height(10.dp))
-                FilledTonalButton(
+                FilledPill(
+                    label = if (item.title.movieWatched) "Снять отметку" else "Отметить просмотренным",
                     onClick = { onMovieWatched(!item.title.movieWatched) },
                     modifier = Modifier.testTag(DetailTags.MOVIE_TOGGLE),
-                ) {
-                    Text(if (item.title.movieWatched) "Снять отметку" else "Отметить просмотренным")
-                }
+                )
                 return@Column
             }
 
             Text(
                 text = "Просмотрено ${item.watchedCount} из ${item.episodeCount}",
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
             )
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
                 progress = { item.progress },
-                modifier = Modifier.fillMaxWidth(),
+                strokeCap = StrokeCap.Round,
+                modifier = Modifier.fillMaxWidth().height(6.dp),
             )
             Spacer(Modifier.height(12.dp))
             if (next != null) {
@@ -474,23 +599,18 @@ private fun ProgressBlock(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (next != null) {
-                    FilledTonalButton(
+                    FilledPill(
+                        label = "+1 серия",
                         onClick = onMarkNext,
                         modifier = Modifier.testTag(DetailTags.MARK_NEXT),
-                    ) {
-                        Text("+1 серия", maxLines = 1)
-                    }
+                    )
                 }
                 if (item.episodeCount > 0) {
-                    OutlinedButton(
+                    OutlinedPill(
+                        label = if (item.isCompleted) "Сбросить всё" else "Отметить всё",
                         onClick = if (item.isCompleted) onNone else onAll,
                         modifier = Modifier.testTag(DetailTags.TOGGLE_ALL),
-                    ) {
-                        Text(
-                            text = if (item.isCompleted) "Сбросить всё" else "Отметить всё",
-                            maxLines = 1,
-                        )
-                    }
+                    )
                 }
             }
         }
@@ -498,30 +618,117 @@ private fun ProgressBlock(
 }
 
 @Composable
+private fun FilledPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = modifier.height(40.dp),
+    ) {
+        Box(Modifier.padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
+            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun OutlinedPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = modifier.height(40.dp),
+    ) {
+        Box(Modifier.padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
+            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+/** Notes are collapsed behind a button until the user wants them. */
+@Composable
 private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
+    var open by remember(initial) { mutableStateOf(false) }
     var text by remember(initial) { mutableStateOf(initial) }
+
     Column(Modifier.padding(horizontal = 16.dp)) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            label = { Text("Заметки") },
-            minLines = 2,
-            modifier = Modifier.fillMaxWidth().testTag(DetailTags.NOTES),
-        )
-        if (text != initial) {
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(
-                    onClick = { onSave(text) },
-                    modifier = Modifier.testTag(DetailTags.NOTES_SAVE),
-                ) { Text("Сохранить") }
-                TextButton(onClick = { text = initial }) { Text("Отмена") }
+        if (!open) {
+            Surface(
+                onClick = { open = true },
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                modifier = Modifier.height(40.dp).testTag(DetailTags.NOTES_OPEN),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.EditNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        text = if (initial.isBlank()) "Добавить заметку" else "Заметка: ${initial.take(24)}",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        } else {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text(
+                        text = "Заметки",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    BasicTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        textStyle = LocalTextStyle.current.copy(
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .height(60.dp)
+                            .testTag(DetailTags.NOTES),
+                    )
+                }
+            }
+            if (text != initial) {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledPill(
+                        label = "Сохранить",
+                        onClick = { onSave(text); open = false },
+                        modifier = Modifier.testTag(DetailTags.NOTES_SAVE),
+                    )
+                    DialogTextButton(label = "Отмена", onClick = { text = initial; open = false })
+                }
             }
         }
     }
 }
 
-/** Takes plain values, not [Season] — a data class holding a List is unstable to Compose. */
 @Composable
 private fun SeasonHeader(
     number: Int,
@@ -533,34 +740,50 @@ private fun SeasonHeader(
     onToggleWatched: () -> Unit,
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        onClick = onToggleExpand,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .testTag(DetailTags.seasonHeader(number))
-            .clickable(onClick = onToggleExpand),
+            .testTag(DetailTags.seasonHeader(number)),
     ) {
         Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Сезон $number", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = "Сезон $number",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                )
                 Text(
                     text = "$watchedCount / $total",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            AssistChip(
+            Surface(
                 onClick = onToggleWatched,
-                label = { Text(if (allWatched) "Снять" else "Весь сезон") },
-                modifier = Modifier.testTag(DetailTags.seasonToggle(number)),
-            )
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                modifier = Modifier.height(32.dp).testTag(DetailTags.seasonToggle(number)),
+            ) {
+                Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (allWatched) "Снять" else "Весь сезон",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
             Icon(
                 imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = if (expanded) "Свернуть" else "Развернуть",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -578,12 +801,13 @@ private fun EpisodeRow(
                 .fillMaxWidth()
                 .testTag(DetailTags.episode(episode.seasonNumber, episode.episodeNumber))
                 .clickable { onToggle(episode) }
-                .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Checkbox(
+            EpisodeCheckbox(
                 checked = episode.watched,
-                onCheckedChange = { onToggle(episode) },
+                onClick = { onToggle(episode) },
                 modifier = Modifier
                     .testTag(DetailTags.episodeCheckbox(episode.seasonNumber, episode.episodeNumber)),
             )
@@ -603,21 +827,64 @@ private fun EpisodeRow(
                 }
             }
             if (!episode.watched) {
-                IconButton(
+                Surface(
                     onClick = { onWatchUpTo(episode) },
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
+                        .size(44.dp)
                         .testTag(DetailTags.watchUpTo(episode.seasonNumber, episode.episodeNumber)),
                 ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.PlaylistAddCheck,
-                        contentDescription = "Отметить всё до этой серии",
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.PlaylistAddCheck,
+                            contentDescription = "Отметить всё до этой серии",
+                        )
+                    }
                 }
             }
         }
         HorizontalDivider(
             modifier = Modifier.padding(start = 16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            color = MaterialTheme.colorScheme.outlineVariant,
         )
+    }
+}
+
+/**
+ * Square 20dp checkbox from the mock rather than Material's larger default.
+ *
+ * Uses `toggleable` rather than a plain click so it reports checked/unchecked to
+ * accessibility services (and to tests) the way a real checkbox does.
+ */
+@Composable
+private fun EpisodeCheckbox(
+    checked: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(3.dp),
+        color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        border = if (checked) {
+            null
+        } else {
+            androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+        },
+        modifier = modifier
+            .size(20.dp)
+            .toggleable(
+                value = checked,
+                role = Role.Checkbox,
+                onValueChange = { onClick() },
+            ),
+    ) {
+        if (checked) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+            }
+        }
     }
 }

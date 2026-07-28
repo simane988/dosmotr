@@ -1,48 +1,44 @@
 package com.g3ck0.seriestracker.ui.library
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,24 +48,39 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
-import com.g3ck0.seriestracker.ui.backup.BackupMenu
-import com.g3ck0.seriestracker.ui.common.episodesLabel
-import com.g3ck0.seriestracker.ui.common.label
+import com.g3ck0.seriestracker.data.backup.BackupRepository.ImportMode
+import com.g3ck0.seriestracker.ui.FloatingNavClearance
+import com.g3ck0.seriestracker.ui.backup.BackupViewModel
+import com.g3ck0.seriestracker.ui.common.ClearFocusWhenDialogCloses
+import com.g3ck0.seriestracker.ui.common.DesignChip
+import com.g3ck0.seriestracker.ui.common.DesignDialog
+import com.g3ck0.seriestracker.ui.common.DialogTextButton
+import com.g3ck0.seriestracker.ui.common.ExtendedActionButton
+import com.g3ck0.seriestracker.ui.common.PillSearchField
 import com.g3ck0.seriestracker.ui.common.Poster
+import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
+import com.g3ck0.seriestracker.ui.common.label
 
 object LibraryTags {
     const val LIST = "library:list"
     const val FILTER_QUERY = "library:query"
     const val EMPTY = "library:empty"
+    const val TOP_MENU = "library:topMenu"
+    const val EXPORT = "library:export"
+    const val IMPORT = "library:import"
+    const val FAB = "library:fab"
     fun card(titleId: String) = "library:card:$titleId"
     fun markNext(titleId: String) = "library:markNext:$titleId"
     fun overflow(titleId: String) = "library:overflow:$titleId"
@@ -90,15 +101,65 @@ fun LibraryScreen(
     onOpenTitle: (String) -> Unit,
     onSearch: () -> Unit,
     viewModel: LibraryViewModel = hiltViewModel(),
+    backupViewModel: BackupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var backupMessage by remember { mutableStateOf<String?>(null) }
+    val backupState by backupViewModel.state.collectAsStateWithLifecycle()
+    var askImportMode by remember { mutableStateOf(false) }
+    var importMode by remember { mutableStateOf(ImportMode.MERGE) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let(backupViewModel::export) }
+
+    // Some file managers report JSON as octet-stream or plain text — accept all three.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { backupViewModel.import(it, importMode) } }
+
+    // Without this the search field grabs focus as the dialog closes, pops the keyboard
+    // and covers the bottom bar, so the next tab tap goes nowhere.
+    ClearFocusWhenDialogCloses(askImportMode)
+
+    if (askImportMode) {
+        DesignDialog(
+            title = "Импорт из JSON",
+            onDismiss = { askImportMode = false },
+            content = {
+                Text(
+                    "Объединить — библиотека сохранится, добавятся недостающие тайтлы, " +
+                        "отметки о просмотре сложатся.\n\n" +
+                        "Заменить — текущая библиотека будет стёрта и восстановлена из файла."
+                )
+            },
+            confirmButton = {
+                DialogTextButton(
+                    label = "Объединить",
+                    onClick = {
+                        askImportMode = false
+                        importMode = ImportMode.MERGE
+                        importLauncher.launch(IMPORT_TYPES)
+                    },
+                )
+            },
+            dismissButton = {
+                DialogTextButton(
+                    label = "Заменить",
+                    onClick = {
+                        askImportMode = false
+                        importMode = ImportMode.REPLACE
+                        importLauncher.launch(IMPORT_TYPES)
+                    },
+                )
+            },
+        )
+    }
 
     LibraryContent(
         state = state,
-        message = state.message ?: backupMessage,
+        message = state.message ?: backupState.message,
         onMessageShown = {
-            if (state.message != null) viewModel.consumeMessage() else backupMessage = null
+            if (state.message != null) viewModel.consumeMessage() else backupViewModel.consumeMessage()
         },
         onQueryChange = viewModel::setQuery,
         onStatusFilter = viewModel::setStatusFilter,
@@ -109,11 +170,13 @@ fun LibraryScreen(
         onToggleMovie = { id, watched -> viewModel.toggleMovieWatched(id, watched) },
         onSetStatus = { id, status -> viewModel.setStatus(id, status) },
         onDelete = { viewModel.delete(it) },
-        actions = { BackupMenu(onMessage = { backupMessage = it }) },
+        onExport = { exportLauncher.launch(backupViewModel.suggestedFileName()) },
+        onImport = { askImportMode = true },
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private val IMPORT_TYPES = arrayOf("application/json", "text/plain", "application/octet-stream")
+
 @Composable
 fun LibraryContent(
     state: LibraryUiState,
@@ -128,7 +191,8 @@ fun LibraryContent(
     onToggleMovie: (String, Boolean) -> Unit = { _, _ -> },
     onSetStatus: (String, WatchStatus) -> Unit = { _, _ -> },
     onDelete: (String) -> Unit = {},
-    actions: @Composable RowScope.() -> Unit = {},
+    onExport: () -> Unit = {},
+    onImport: () -> Unit = {},
 ) {
     val snackbar = remember { SnackbarHostState() }
 
@@ -139,58 +203,125 @@ fun LibraryContent(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Моя библиотека") }, actions = actions)
-        },
-        // The outer Scaffold in AppRoot already consumed the system insets.
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onSearch) {
-                Icon(Icons.Filled.Add, contentDescription = "Добавить")
-            }
-        },
-    ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            OutlinedTextField(
-                value = state.filters.query,
-                onValueChange = onQueryChange,
-                label = { Text("Фильтр по названию") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .testTag(LibraryTags.FILTER_QUERY),
-            )
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().statusBarsPadding()) {
+                LargeHeader(
+                    title = "Моя библиотека",
+                    onExport = onExport,
+                    onImport = onImport,
+                )
 
-            FilterRow(
-                selectedStatus = state.filters.status,
-                selectedType = state.filters.mediaType,
-                onStatus = onStatusFilter,
-                onType = onMediaFilter,
-            )
+                PillSearchField(
+                    value = state.filters.query,
+                    onValueChange = onQueryChange,
+                    placeholder = "Фильтр по названию",
+                    fieldModifier = Modifier.testTag(LibraryTags.FILTER_QUERY),
+                    modifier = Modifier
+                        .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+                )
 
-            if (state.items.isEmpty() && !state.loading) {
-                EmptyLibrary(hasAnything = state.totalCount > 0, onSearch = onSearch)
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.testTag(LibraryTags.LIST),
-                ) {
-                    items(state.items, key = { it.title.id }, contentType = { "title" }) { item ->
-                        TitleCard(
-                            item = item,
-                            onOpen = { onOpenTitle(item.title.id) },
-                            onMarkNext = { onMarkNext(item.title.id) },
-                            onToggleMovie = { onToggleMovie(item.title.id, it) },
-                            onStatus = { onSetStatus(item.title.id, it) },
-                            onDelete = { onDelete(item.title.id) },
-                        )
+                FilterRow(
+                    selectedStatus = state.filters.status,
+                    selectedType = state.filters.mediaType,
+                    onStatus = onStatusFilter,
+                    onType = onMediaFilter,
+                )
+
+                if (state.items.isEmpty() && !state.loading) {
+                    EmptyLibrary(hasAnything = state.totalCount > 0)
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = FloatingNavClearance,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.testTag(LibraryTags.LIST),
+                    ) {
+                        items(state.items, key = { it.title.id }, contentType = { "title" }) { item ->
+                            TitleCard(
+                                item = item,
+                                onOpen = { onOpenTitle(item.title.id) },
+                                onMarkNext = { onMarkNext(item.title.id) },
+                                onToggleMovie = { onToggleMovie(item.title.id, it) },
+                                onStatus = { onSetStatus(item.title.id, it) },
+                                onDelete = { onDelete(item.title.id) },
+                            )
+                        }
                     }
                 }
+            }
+
+            ExtendedActionButton(
+                icon = Icons.Filled.Add,
+                label = "Добавить",
+                onClick = onSearch,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(end = 16.dp, bottom = 104.dp)
+                    .testTag(LibraryTags.FAB),
+            )
+
+            SnackbarOverlay(
+                hostState = snackbar,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+    }
+}
+
+/** Large top app bar from the mock: 32sp title, menu button on its own container. */
+@Composable
+private fun LargeHeader(title: String, onExport: () -> Unit, onImport: () -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp, end = 8.dp, top = 8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            text = title,
+            fontSize = 32.sp,
+            lineHeight = 40.sp,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+        )
+        Box {
+            Surface(
+                onClick = { menuOpen = true },
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(48.dp).testTag(LibraryTags.TOP_MENU),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "Меню")
+                }
+            }
+            DropdownMenu(
+                expanded = menuOpen,
+                onDismissRequest = { menuOpen = false },
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Экспорт в JSON") },
+                    leadingIcon = { Icon(Icons.Filled.FileDownload, contentDescription = null) },
+                    onClick = { menuOpen = false; onExport() },
+                    modifier = Modifier.testTag(LibraryTags.EXPORT),
+                )
+                DropdownMenuItem(
+                    text = { Text("Импорт из JSON") },
+                    leadingIcon = { Icon(Icons.Filled.FileUpload, contentDescription = null) },
+                    onClick = { menuOpen = false; onImport() },
+                    modifier = Modifier.testTag(LibraryTags.IMPORT),
+                )
             }
         }
     }
@@ -207,28 +338,28 @@ private fun FilterRow(
         Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        FilterChip(
+        DesignChip(
+            label = "Все",
             selected = selectedStatus == null && selectedType == null,
             onClick = { onStatus(null); onType(null) },
-            label = { Text("Все") },
             modifier = Modifier.testTag(LibraryTags.CHIP_ALL),
         )
         WatchStatus.entries.forEach { status ->
-            FilterChip(
+            DesignChip(
+                label = status.label,
                 selected = selectedStatus == status,
                 onClick = { onStatus(if (selectedStatus == status) null else status) },
-                label = { Text(status.label) },
                 modifier = Modifier.testTag(LibraryTags.statusChip(status)),
             )
         }
         MediaType.entries.forEach { type ->
-            FilterChip(
+            DesignChip(
+                label = type.label,
                 selected = selectedType == type,
                 onClick = { onType(if (selectedType == type) null else type) },
-                label = { Text(type.label) },
                 modifier = Modifier.testTag(LibraryTags.mediaChip(type)),
             )
         }
@@ -245,94 +376,142 @@ private fun TitleCard(
     onDelete: () -> Unit,
 ) {
     val title = item.title
-    Card(
+    Surface(
         onClick = onOpen,
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier
             .fillMaxWidth()
             .testTag(LibraryTags.card(title.id)),
     ) {
-        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Poster(
-                path = title.posterPath,
-                title = title.name,
-                modifier = Modifier
-                    .width(62.dp)
-                    .height(93.dp),
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = title.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+        Box {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Poster(
+                    path = title.posterPath,
+                    title = title.name,
+                    corner = 14,
+                    modifier = Modifier.width(64.dp).height(96.dp),
                 )
-                Text(
-                    text = listOfNotNull(
-                        title.mediaType.label,
-                        title.year,
-                        title.status.label,
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-
-                if (title.isMovie) {
+                Column(Modifier.weight(1f)) {
                     Text(
-                        text = if (title.movieWatched) "Просмотрен" else "Не просмотрен",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = title.name,
+                        fontSize = 17.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                } else {
-                    LinearProgressIndicator(
-                        progress = { item.progress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics { contentDescription = "Прогресс" },
-                    )
-                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = if (item.episodeCount == 0) {
-                            "Серии не загружены"
-                        } else {
-                            "${item.watchedCount} / ${item.episodeCount} · осталось ${episodesLabel(item.remaining)}"
-                        },
+                        text = listOfNotNull(
+                            title.mediaType.label,
+                            title.year,
+                            title.status.label,
+                        ).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
-                }
-            }
+                    Spacer(Modifier.weight(1f))
 
-            Spacer(Modifier.width(8.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (title.isMovie) {
-                    FilledTonalIconButton(
-                        onClick = { onToggleMovie(!title.movieWatched) },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .testTag(LibraryTags.markNext(title.id)),
-                    ) {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = "Отметить просмотренным",
+                    if (title.isMovie) {
+                        Text(
+                            text = if (title.movieWatched) "Просмотрен" else "Не просмотрен",
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else if (item.episodeCount == 0) {
+                        Text(
+                            text = "Серии не загружены",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        // The watched count is the headline number in this design.
+                        // One Text with two spans, not two Texts in a Row: side by side
+                        // they wrap independently and the tail jumps above the number.
+                        Text(
+                            text = buildAnnotatedString {
+                                withStyle(
+                                    SpanStyle(fontSize = 20.sp, fontWeight = FontWeight.Medium)
+                                ) {
+                                    append(item.watchedCount.toString())
+                                }
+                                withStyle(
+                                    SpanStyle(
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                ) {
+                                    // "серий" is dropped here on purpose: at this width
+                                    // the full phrase gets clipped. The detail screen
+                                    // still spells it out in full.
+                                    append(" / ${item.episodeCount} · осталось ${item.remaining}")
+                                }
+                            },
+                            lineHeight = 24.sp,
+                            maxLines = 1,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { item.progress },
+                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
+                            modifier = Modifier.fillMaxWidth().height(8.dp),
                         )
                     }
-                } else if (item.remaining > 0) {
-                    FilledTonalIconButton(
-                        onClick = onMarkNext,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .testTag(LibraryTags.markNext(title.id)),
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Плюс одна серия")
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    OverflowMenu(titleId = title.id, onStatus = onStatus, onDelete = onDelete)
+                    if (title.isMovie) {
+                        ActionPill(
+                            icon = Icons.Filled.Check,
+                            label = null,
+                            onClick = { onToggleMovie(!title.movieWatched) },
+                            modifier = Modifier.testTag(LibraryTags.markNext(title.id)),
+                        )
+                    } else if (item.remaining > 0) {
+                        ActionPill(
+                            icon = Icons.Filled.Add,
+                            label = "1 серия",
+                            onClick = onMarkNext,
+                            modifier = Modifier.testTag(LibraryTags.markNext(title.id)),
+                        )
                     }
                 }
-                OverflowMenu(
-                    titleId = title.id,
-                    onStatus = onStatus,
-                    onDelete = onDelete,
-                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = modifier.height(40.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = if (label == null) 14.dp else 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Icon(icon, contentDescription = label ?: "Отметить", modifier = Modifier.size(20.dp))
+            if (label != null) {
+                Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -342,13 +521,22 @@ private fun TitleCard(
 private fun OverflowMenu(titleId: String, onStatus: (WatchStatus) -> Unit, onDelete: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(
+        Surface(
             onClick = { expanded = true },
-            modifier = Modifier.testTag(LibraryTags.overflow(titleId)),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(36.dp).testTag(LibraryTags.overflow(titleId)),
         ) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "Ещё")
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "Ещё")
+            }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(16.dp),
+        ) {
             WatchStatus.entries.forEach { status ->
                 DropdownMenuItem(
                     text = { Text(status.label) },
@@ -368,20 +556,21 @@ private fun OverflowMenu(titleId: String, onStatus: (WatchStatus) -> Unit, onDel
 }
 
 @Composable
-private fun EmptyLibrary(hasAnything: Boolean, onSearch: () -> Unit) {
+private fun EmptyLibrary(hasAnything: Boolean) {
     Box(
         Modifier.fillMaxSize().testTag(LibraryTags.EMPTY),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 32.dp, vertical = 64.dp),
         ) {
             Text(
                 text = if (hasAnything) "Ничего не найдено по фильтрам" else "Библиотека пуста",
-                style = MaterialTheme.typography.titleMedium,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
             )
-            Spacer(Modifier.height(8.dp))
             Text(
                 text = if (hasAnything) {
                     "Сбрось фильтры или измени запрос"
@@ -391,12 +580,6 @@ private fun EmptyLibrary(hasAnything: Boolean, onSearch: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (!hasAnything) {
-                Spacer(Modifier.height(16.dp))
-                FloatingActionButton(onClick = onSearch) {
-                    Icon(Icons.Filled.Search, contentDescription = "Поиск")
-                }
-            }
         }
     }
 }

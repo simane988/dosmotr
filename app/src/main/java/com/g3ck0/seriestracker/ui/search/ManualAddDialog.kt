@@ -1,26 +1,33 @@
 package com.g3ck0.seriestracker.ui.search
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.g3ck0.seriestracker.data.local.MediaType
+import com.g3ck0.seriestracker.ui.common.DesignChip
+import com.g3ck0.seriestracker.ui.common.DesignDialog
+import com.g3ck0.seriestracker.ui.common.DialogTextButton
 import com.g3ck0.seriestracker.ui.common.label
 
 object ManualAddTags {
@@ -38,7 +45,6 @@ object ManualAddTags {
  * Manual entry for titles TMDB does not have (or when offline).
  * Seasons are described as a comma separated episode count per season: "12, 10, 8".
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManualAddDialog(
     onDismiss: () -> Unit,
@@ -53,71 +59,73 @@ fun ManualAddDialog(
     val episodesPerSeason = parseSeasons(seasonsSpec)
     val valid = name.isNotBlank() && (type == MediaType.MOVIE || episodesPerSeason.isNotEmpty())
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Добавить вручную") },
-        text = {
+    DesignDialog(
+        title = "Добавить вручную",
+        onDismiss = onDismiss,
+        content = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                LabelledField(
+                    label = "Название",
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Название") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag(ManualAddTags.NAME),
+                    fieldModifier = Modifier.testTag(ManualAddTags.NAME),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     MediaType.entries.forEach { option ->
-                        FilterChip(
+                        DesignChip(
+                            label = option.label,
                             selected = type == option,
                             onClick = { type = option },
-                            label = { Text(option.label) },
                             modifier = Modifier.testTag(ManualAddTags.type(option)),
                         )
                     }
                 }
                 if (type == MediaType.TV) {
-                    OutlinedTextField(
-                        value = seasonsSpec,
-                        onValueChange = { seasonsSpec = it },
-                        label = { Text("Серий по сезонам") },
-                        supportingText = {
-                            Text(
-                                text = if (episodesPerSeason.isEmpty()) {
-                                    "Например: 12, 10, 8"
-                                } else {
-                                    "${episodesPerSeason.size} сезон(ов), всего ${episodesPerSeason.sum()} серий"
-                                },
-                                modifier = Modifier.testTag(ManualAddTags.SEASONS_SUMMARY),
-                            )
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag(ManualAddTags.SEASONS),
-                    )
+                    Column {
+                        LabelledField(
+                            label = "Серий по сезонам",
+                            value = seasonsSpec,
+                            onValueChange = { seasonsSpec = it },
+                            fieldModifier = Modifier.testTag(ManualAddTags.SEASONS),
+                        )
+                        Text(
+                            text = if (episodesPerSeason.isEmpty()) {
+                                "Например: 12, 10, 8"
+                            } else {
+                                "${episodesPerSeason.size} сезон(ов), всего ${episodesPerSeason.sum()} серий"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .padding(start = 16.dp, top = 4.dp)
+                                .testTag(ManualAddTags.SEASONS_SUMMARY),
+                        )
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    LabelledField(
+                        label = if (type == MediaType.TV) "Мин/серия" else "Длительность",
                         value = runtime,
                         onValueChange = { runtime = it.filter(Char::isDigit).take(4) },
-                        label = { Text(if (type == MediaType.TV) "Мин/серия" else "Длительность") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f).testTag(ManualAddTags.RUNTIME),
+                        keyboardType = KeyboardType.Number,
+                        modifier = Modifier.weight(1f),
+                        fieldModifier = Modifier.testTag(ManualAddTags.RUNTIME),
                     )
-                    OutlinedTextField(
+                    LabelledField(
+                        label = "Год",
                         value = year,
                         onValueChange = { year = it.filter(Char::isDigit).take(4) },
-                        label = { Text("Год") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f).testTag(ManualAddTags.YEAR),
+                        keyboardType = KeyboardType.Number,
+                        modifier = Modifier.weight(1f),
+                        fieldModifier = Modifier.testTag(ManualAddTags.YEAR),
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(
+            DialogTextButton(
+                label = "Добавить",
                 enabled = valid,
-                modifier = Modifier.testTag(ManualAddTags.CONFIRM),
                 onClick = {
                     onConfirm(
                         name.trim(),
@@ -127,15 +135,56 @@ fun ManualAddDialog(
                         year.takeIf { it.length == 4 },
                     )
                 },
-            ) { Text("Добавить") }
+                modifier = Modifier.testTag(ManualAddTags.CONFIRM),
+            )
         },
         dismissButton = {
-            TextButton(
+            DialogTextButton(
+                label = "Отмена",
                 onClick = onDismiss,
                 modifier = Modifier.testTag(ManualAddTags.CANCEL),
-            ) { Text("Отмена") }
+            )
         },
     )
+}
+
+/** Outlined field with a caption above the value, as drawn in the mock. */
+@Composable
+private fun LabelledField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    // The tag belongs on the editable node so performTextInput can reach it.
+    fieldModifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Text,
+) {
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = LocalTextStyle.current.copy(
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                modifier = fieldModifier.fillMaxWidth(),
+            )
+        }
+    }
 }
 
 internal fun parseSeasons(spec: String): List<Int> =

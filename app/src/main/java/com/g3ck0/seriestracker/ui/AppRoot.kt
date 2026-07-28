@@ -1,19 +1,31 @@
 package com.g3ck0.seriestracker.ui
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -34,6 +46,17 @@ object Routes {
     fun detail(titleId: String) = "detail/$titleId"
 }
 
+object NavTags {
+    const val BAR = "nav:bar"
+    fun tab(route: String) = "nav:tab:$route"
+}
+
+/**
+ * Height the floating navigation pill occupies, including its bottom offset. Screens
+ * pad their scrollable content by this so the last row is not trapped under the bar.
+ */
+val FloatingNavClearance = 140.dp
+
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
@@ -47,39 +70,12 @@ fun AppRoot() {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
+    val onTabs = currentRoute in tabs.map { it.route }
 
-    Scaffold(
-        bottomBar = {
-            if (currentRoute in tabs.map { it.route }) {
-                NavigationBar {
-                    tabs.forEach { tab ->
-                        NavigationBarItem(
-                            selected = currentRoute == tab.route,
-                            onClick = {
-                                if (currentRoute != tab.route) {
-                                    navController.navigate(tab.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) },
-                        )
-                    }
-                }
-            }
-        }
-    ) { padding ->
+    Box(Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
             startDestination = Routes.LIBRARY,
-            // Only the bottom bar is consumed here; every screen's own TopAppBar
-            // draws under the status bar and applies that inset itself.
-            modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
         ) {
             composable(Routes.LIBRARY) {
                 LibraryScreen(
@@ -98,6 +94,92 @@ fun AppRoot() {
                 arguments = listOf(navArgument("titleId") { type = NavType.StringType }),
             ) {
                 DetailScreen(onBack = { navController.popBackStack() })
+            }
+        }
+
+        // The bar floats over the content rather than docking, so it is hidden on the
+        // detail screen instead of being drawn behind a full-bleed layout.
+        if (onTabs) {
+            FloatingNavBar(
+                currentRoute = currentRoute,
+                onSelect = { route ->
+                    if (currentRoute != route) {
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .navigationBarsPadding()
+                    .padding(start = 16.dp, bottom = 20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FloatingNavBar(
+    currentRoute: String?,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(32.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 6.dp,
+        modifier = modifier.testTag(NavTags.BAR),
+    ) {
+        Row(
+            modifier = Modifier.height(64.dp).padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            tabs.forEach { tab ->
+                val selected = currentRoute == tab.route
+                if (selected) {
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier
+                            .height(48.dp)
+                            .testTag(NavTags.tab(tab.route)),
+                        onClick = { onSelect(tab.route) },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 18.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(tab.icon, contentDescription = null, modifier = Modifier.size(24.dp))
+                            Text(
+                                text = tab.label,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .width(56.dp)
+                            .height(48.dp)
+                            .testTag(NavTags.tab(tab.route)),
+                        onClick = { onSelect(tab.route) },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(24.dp))
+                        }
+                    }
+                }
             }
         }
     }

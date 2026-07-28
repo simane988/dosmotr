@@ -66,7 +66,7 @@ class DarkThemeTest {
         }
 
         compose.onNodeWithText("Уэнздей").assertIsDisplayed()
-        compose.onNodeWithText("2 / 8 · осталось 6 серий").assertIsDisplayed()
+        compose.onNodeWithText("2 / 8 · осталось 6").assertIsDisplayed()
         compose.onNodeWithTag(LibraryTags.card("tv_1")).performClick()
 
         assertEquals("tv_1", opened)
@@ -101,7 +101,6 @@ class DarkThemeTest {
         }
 
         compose.onNodeWithText("Просмотрено 2 из 8").assertIsDisplayed()
-        compose.onNodeWithTag(DetailTags.episode(1, 1)).assertIsDisplayed()
         compose.onNodeWithTag(DetailTags.MARK_NEXT).performClick()
 
         assertTrue(marked)

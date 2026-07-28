@@ -5,39 +5,31 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,16 +39,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.repository.SearchItem
+import com.g3ck0.seriestracker.ui.FloatingNavClearance
 import com.g3ck0.seriestracker.ui.common.ClearFocusWhenDialogCloses
+import com.g3ck0.seriestracker.ui.common.ExtendedActionButton
+import com.g3ck0.seriestracker.ui.common.PillSearchField
 import com.g3ck0.seriestracker.ui.common.Poster
+import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
 import com.g3ck0.seriestracker.ui.common.label
 
 object SearchTags {
@@ -93,7 +91,6 @@ fun SearchScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchContent(
     state: SearchUiState,
@@ -129,83 +126,108 @@ fun SearchContent(
         )
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Поиск") }) },
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { manualDialog = true },
-                icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                text = { Text("Вручную") },
-                modifier = Modifier.testTag(SearchTags.MANUAL_FAB),
-            )
-        },
-    ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = onQueryChange,
-                label = { Text("Сериал или фильм") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (state.query.isNotEmpty()) {
-                        IconButton(
-                            onClick = { onQueryChange("") },
-                            modifier = Modifier.testTag(SearchTags.CLEAR),
-                        ) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Очистить")
-                        }
-                    }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearchNow() }),
-                enabled = state.hasApiKey,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .testTag(SearchTags.QUERY),
-            )
-
-            if (state.loading) {
-                LinearProgressIndicator(
-                    Modifier.fillMaxWidth().testTag(SearchTags.LOADING)
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().statusBarsPadding()) {
+                Text(
+                    text = "Поиск",
+                    fontSize = 32.sp,
+                    lineHeight = 40.sp,
+                    modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 20.dp, bottom = 12.dp),
                 )
-            }
 
-            when {
-                !state.hasApiKey -> NoApiKey(onManual = { manualDialog = true })
+                PillSearchField(
+                    value = state.query,
+                    onValueChange = onQueryChange,
+                    placeholder = "Сериал или фильм",
+                    enabled = state.hasApiKey,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearchNow() }),
+                    trailing = {
+                        if (state.query.isNotEmpty()) {
+                            Surface(
+                                onClick = { onQueryChange("") },
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(40.dp).testTag(SearchTags.CLEAR),
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Filled.Clear, contentDescription = "Очистить")
+                                }
+                            }
+                        }
+                    },
+                    fieldModifier = Modifier.testTag(SearchTags.QUERY),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
 
-                state.error != null -> ErrorBlock(message = state.error, onRetry = onSearchNow)
+                if (state.loading) {
+                    LinearProgressIndicator(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                            .height(4.dp)
+                            .testTag(SearchTags.LOADING)
+                    )
+                }
 
-                state.results.isEmpty() && !state.loading && state.query.isNotBlank() ->
-                    NothingFound(query = state.query, onManual = { manualDialog = true })
+                when {
+                    !state.hasApiKey -> NoApiKey(onManual = { manualDialog = true })
 
-                else -> {
-                    if (state.showingTrending && state.results.isNotEmpty()) {
-                        Text(
-                            text = "Популярное за неделю",
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                    }
-                    LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.testTag(SearchTags.LIST),
-                    ) {
-                        items(state.results, key = { it.id }, contentType = { "result" }) { item ->
-                            ResultCard(
-                                item = item,
-                                added = item.id in trackedIds,
-                                onAdd = { onAdd(item) },
-                                onOpen = { onOpenTitle(item.id) },
+                    state.error != null -> ErrorBlock(message = state.error, onRetry = onSearchNow)
+
+                    state.results.isEmpty() && !state.loading && state.query.isNotBlank() ->
+                        NothingFound(query = state.query, onManual = { manualDialog = true })
+
+                    else -> {
+                        if (state.showingTrending && state.results.isNotEmpty()) {
+                            Text(
+                                text = "Популярное за неделю",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
                             )
+                        }
+                        LazyColumn(
+                            contentPadding = PaddingValues(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 8.dp,
+                                bottom = FloatingNavClearance,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.testTag(SearchTags.LIST),
+                        ) {
+                            items(state.results, key = { it.id }, contentType = { "result" }) { item ->
+                                ResultCard(
+                                    item = item,
+                                    added = item.id in trackedIds,
+                                    onAdd = { onAdd(item) },
+                                    onOpen = { onOpenTitle(item.id) },
+                                )
+                            }
                         }
                     }
                 }
             }
+
+            ExtendedActionButton(
+                icon = Icons.Filled.Edit,
+                label = "Вручную",
+                onClick = { manualDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(end = 16.dp, bottom = 104.dp)
+                    .testTag(SearchTags.MANUAL_FAB),
+            )
+
+            SnackbarOverlay(
+                hostState = snackbar,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }
@@ -217,66 +239,80 @@ private fun ResultCard(
     onAdd: () -> Unit,
     onOpen: () -> Unit,
 ) {
-    Card(
+    Surface(
         onClick = { if (added) onOpen() else onAdd() },
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Poster(
                 path = item.posterPath,
                 title = item.name,
-                modifier = Modifier
-                    .width(62.dp)
-                    .height(93.dp),
+                corner = 12,
+                modifier = Modifier.width(62.dp).height(93.dp),
             )
-            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = item.name,
-                    style = MaterialTheme.typography.titleMedium,
+                    fontSize = 16.sp,
+                    lineHeight = 22.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 2.dp),
+                ) {
                     Text(
                         text = listOfNotNull(item.mediaType.label, item.year).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     item.voteAverage?.takeIf { it > 0 }?.let { rating ->
-                        Spacer(Modifier.width(8.dp))
                         Icon(
                             Icons.Filled.Star,
                             contentDescription = null,
-                            modifier = Modifier.width(14.dp),
-                            tint = MaterialTheme.colorScheme.secondary,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(14.dp),
                         )
-                        Text(
-                            text = "%.1f".format(rating),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                        Text(text = "%.1f".format(rating), style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 if (item.overview.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = item.overview,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
-            Spacer(Modifier.width(8.dp))
-            FilledTonalButton(
+            Surface(
                 onClick = { if (added) onOpen() else onAdd() },
-                modifier = Modifier.testTag(SearchTags.add(item.id)),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.height(40.dp).testTag(SearchTags.add(item.id)),
             ) {
-                Icon(
-                    imageVector = if (added) Icons.Filled.Check else Icons.Filled.Add,
-                    contentDescription = if (added) "Уже добавлено" else "Добавить",
-                )
+                Box(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (added) Icons.Filled.Check else Icons.Filled.Add,
+                        contentDescription = if (added) "Уже добавлено" else "Добавить",
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
     }
@@ -284,67 +320,83 @@ private fun ResultCard(
 
 @Composable
 private fun NoApiKey(onManual: () -> Unit) {
-    Box(
-        Modifier.fillMaxSize().testTag(SearchTags.NO_API_KEY),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp),
-        ) {
-            Text("Поиск недоступен", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Добавь строку tmdb.apiKey=… в local.properties и пересобери приложение. " +
-                    "Ключ бесплатный: themoviedb.org → Settings → API.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(16.dp))
-            FilledTonalButton(onClick = onManual) { Text("Добавить вручную") }
-        }
-    }
+    CenteredMessage(
+        tag = SearchTags.NO_API_KEY,
+        title = "Поиск недоступен",
+        body = "Добавь строку tmdb.apiKey=… в local.properties и пересобери приложение. " +
+            "Ключ бесплатный: themoviedb.org → Settings → API.",
+        actionLabel = "Добавить вручную",
+        onAction = onManual,
+    )
 }
 
 @Composable
 private fun NothingFound(query: String, onManual: () -> Unit) {
-    Box(
-        Modifier.fillMaxSize().testTag(SearchTags.EMPTY),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp),
-        ) {
-            Text("Ничего не найдено", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "По запросу «$query» в TMDB ничего нет. Проверь написание " +
-                    "или добавь запись вручную.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(16.dp))
-            FilledTonalButton(onClick = onManual) { Text("Добавить вручную") }
-        }
-    }
+    CenteredMessage(
+        tag = SearchTags.EMPTY,
+        title = "Ничего не найдено",
+        body = "По запросу «$query» в TMDB ничего нет. Проверь написание или добавь запись вручную.",
+        actionLabel = "Добавить вручную",
+        onAction = onManual,
+    )
 }
 
 @Composable
 private fun ErrorBlock(message: String, onRetry: () -> Unit) {
+    CenteredMessage(
+        tag = SearchTags.ERROR,
+        title = message,
+        body = null,
+        actionLabel = "Повторить",
+        onAction = onRetry,
+    )
+}
+
+@Composable
+private fun CenteredMessage(
+    tag: String,
+    title: String,
+    body: String?,
+    actionLabel: String,
+    onAction: () -> Unit,
+) {
     Box(
-        Modifier.fillMaxSize().testTag(SearchTags.ERROR),
+        Modifier.fillMaxSize().testTag(tag),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 32.dp),
         ) {
-            Text(message, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(12.dp))
-            TextButton(onClick = onRetry) { Text("Повторить") }
+            Text(
+                text = title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+            )
+            if (body != null) {
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Surface(
+                onClick = onAction,
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.padding(top = 8.dp).height(40.dp),
+            ) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(actionLabel, style = MaterialTheme.typography.labelLarge)
+                }
+            }
         }
     }
 }

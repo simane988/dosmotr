@@ -2,7 +2,6 @@ package com.g3ck0.seriestracker.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -68,7 +67,7 @@ class LibraryContentTest {
 
         compose.onNodeWithText("Dark").assertIsDisplayed()
         compose.onNodeWithText("Сериал · 2017 · Смотрю").assertIsDisplayed()
-        compose.onNodeWithText("3 / 10 · осталось 7 серий").assertIsDisplayed()
+        compose.onNodeWithText("3 / 10 · осталось 7").assertIsDisplayed()
     }
 
     @Test
@@ -104,7 +103,7 @@ class LibraryContentTest {
 
         compose.onNodeWithTag(LibraryTags.EMPTY).assertIsDisplayed()
         compose.onNodeWithText("Библиотека пуста").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Поиск").performClick()
+        compose.onNodeWithTag(LibraryTags.FAB).performClick()
         assertTrue(searched)
     }
 
