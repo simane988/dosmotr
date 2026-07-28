@@ -1,5 +1,11 @@
 package com.g3ck0.seriestracker.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -57,6 +63,10 @@ object NavTags {
  */
 val FloatingNavClearance = 140.dp
 
+/** Incoming screen is slightly slower than the outgoing one, so they never both fade out. */
+private const val ENTER_MILLIS = 260
+private const val EXIT_MILLIS = 200
+
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
@@ -72,10 +82,34 @@ fun AppRoot() {
     val currentRoute = backStack?.destination?.route
     val onTabs = currentRoute in tabs.map { it.route }
 
-    Box(Modifier.fillMaxSize()) {
+    // Painted behind the NavHost: during a transition both screens are partly
+    // transparent, and without this the window background (white) shows through.
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
         NavHost(
             navController = navController,
             startDestination = Routes.LIBRARY,
+            // Material's shared-axis Z: the outgoing screen shrinks away, the
+            // incoming one grows into place. Going back reverses the direction.
+            enterTransition = {
+                fadeIn(tween(ENTER_MILLIS)) +
+                    scaleIn(initialScale = 0.94f, animationSpec = tween(ENTER_MILLIS))
+            },
+            exitTransition = {
+                fadeOut(tween(EXIT_MILLIS)) +
+                    scaleOut(targetScale = 0.94f, animationSpec = tween(EXIT_MILLIS))
+            },
+            popEnterTransition = {
+                fadeIn(tween(ENTER_MILLIS)) +
+                    scaleIn(initialScale = 1.06f, animationSpec = tween(ENTER_MILLIS))
+            },
+            popExitTransition = {
+                fadeOut(tween(EXIT_MILLIS)) +
+                    scaleOut(targetScale = 1.06f, animationSpec = tween(EXIT_MILLIS))
+            },
         ) {
             composable(Routes.LIBRARY) {
                 LibraryScreen(
