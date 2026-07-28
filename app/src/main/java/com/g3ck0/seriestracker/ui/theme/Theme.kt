@@ -1,17 +1,21 @@
 package com.g3ck0.seriestracker.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * Palette from the Claude Design mock (variant B).
  *
- * Dynamic colour is deliberately not used: the mock specifies exact roles, and pulling
- * hues from the wallpaper would replace them with something else on every device.
+ * Used as-is below Android 12 and whenever dynamic colour is switched off; on newer
+ * devices the system derives the scheme from the wallpaper instead.
  */
 private val LightColors = lightColorScheme(
     primary = Color(0xFF4B5BD1),
@@ -80,13 +84,29 @@ private val DarkColors = darkColorScheme(
     inversePrimary = Color(0xFF4B5BD1),
 )
 
+/**
+ * @param dynamicColor take the key colour from the system (Material You, derived from
+ *   the wallpaper) instead of the mock's palette. Needs Android 12+; older devices fall
+ *   back to the mock. Tests pass `false` so results do not depend on the device.
+ */
 @Composable
 fun SeriesTrackerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
+    val colors = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+
+        darkTheme -> DarkColors
+        else -> LightColors
+    }
+
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
+        colorScheme = colors,
         typography = MaterialTheme.typography,
         content = content,
     )
