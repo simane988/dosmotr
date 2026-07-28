@@ -87,6 +87,11 @@ class DetailContentTest {
         ),
     )
 
+    /** Episodes live behind their own tab in this design. */
+    private fun openEpisodesTab() {
+        compose.onNodeWithTag(DetailTags.TAB_EPISODES).performClick()
+    }
+
     @Test
     fun headerShowsMetadata() {
         compose.setThemedContent { DetailContent(state = seriesState()) }
@@ -94,7 +99,26 @@ class DetailContentTest {
         compose.onNodeWithText("Сериал · 2022").assertIsDisplayed()
         compose.onNodeWithText("8.3 TMDB").assertIsDisplayed()
         compose.onNodeWithText("~45 мин/серия").assertIsDisplayed()
-        compose.onNodeWithText("Описание сериала").assertIsDisplayed()
+    }
+
+    @Test
+    fun episodesAreBehindTheirOwnTab() {
+        compose.setThemedContent { DetailContent(state = seriesState()) }
+
+        compose.onNodeWithTag(DetailTags.episode(1, 1)).assertDoesNotExist()
+        openEpisodesTab()
+        compose.onNodeWithTag(DetailTags.episode(1, 1)).assertIsDisplayed()
+    }
+
+    @Test
+    fun overviewTabHidesEpisodesAgain() {
+        compose.setThemedContent { DetailContent(state = seriesState()) }
+
+        openEpisodesTab()
+        compose.onNodeWithTag(DetailTags.TAB_OVERVIEW).performClick()
+
+        compose.onNodeWithTag(DetailTags.episode(1, 1)).assertDoesNotExist()
+        compose.onNodeWithText("Просмотрено 1 из 4").assertIsDisplayed()
     }
 
     @Test
@@ -184,6 +208,8 @@ class DetailContentTest {
             DetailContent(state = seriesState(notes = "старое"), onNotes = { saved = it })
         }
 
+        compose.onNodeWithTag(DetailTags.NOTES).assertDoesNotExist()
+        compose.onNodeWithTag(DetailTags.NOTES_OPEN).performClick()
         compose.onNodeWithTag(DetailTags.NOTES_SAVE).assertDoesNotExist()
         compose.onNodeWithTag(DetailTags.NOTES).performTextReplacement("новое")
         compose.onNodeWithTag(DetailTags.NOTES_SAVE).performClick()
@@ -194,6 +220,7 @@ class DetailContentTest {
     @Test
     fun seasonWithNextEpisodeStartsExpanded() {
         compose.setThemedContent { DetailContent(state = seriesState()) }
+        openEpisodesTab()
 
         compose.onNodeWithTag(DetailTags.episode(1, 1)).assertIsDisplayed()
     }
@@ -201,6 +228,7 @@ class DetailContentTest {
     @Test
     fun collapsingASeasonHidesItsEpisodes() {
         compose.setThemedContent { DetailContent(state = seriesState()) }
+        openEpisodesTab()
 
         compose.onNodeWithTag(DetailTags.seasonHeader(1)).performClick()
 
@@ -215,6 +243,7 @@ class DetailContentTest {
             watched = 0,
         )
         compose.setThemedContent { DetailContent(state = state) }
+        openEpisodesTab()
 
         compose.onNodeWithTag(DetailTags.episode(2, 1)).assertDoesNotExist()
         // LazyColumn does not compose off-screen items, so scroll the list, not the node.
@@ -227,6 +256,7 @@ class DetailContentTest {
     @Test
     fun episodeCheckboxReflectsWatchedState() {
         compose.setThemedContent { DetailContent(state = seriesState(watched = 1)) }
+        openEpisodesTab()
 
         compose.onNodeWithTag(DetailTags.episodeCheckbox(1, 1)).assertIsOn()
         compose.onNodeWithTag(DetailTags.episodeCheckbox(1, 2)).assertIsOff()
@@ -238,6 +268,7 @@ class DetailContentTest {
         compose.setThemedContent {
             DetailContent(state = seriesState(), onToggleEpisode = { toggled = it })
         }
+        openEpisodesTab()
 
         compose.onNodeWithTag(DetailTags.episode(1, 2)).performClick()
 
@@ -250,6 +281,7 @@ class DetailContentTest {
         compose.setThemedContent {
             DetailContent(state = seriesState(watched = 1), onWatchUpTo = { upTo = it })
         }
+        openEpisodesTab()
 
         compose.onNodeWithTag(DetailTags.watchUpTo(1, 1)).assertDoesNotExist()
         compose.onNodeWithTag(DetailTags.LIST)
@@ -265,6 +297,7 @@ class DetailContentTest {
         compose.setThemedContent {
             DetailContent(state = seriesState(), onToggleSeason = { season = it })
         }
+        openEpisodesTab()
 
         compose.onNodeWithTag(DetailTags.LIST)
             .performScrollToNode(hasTestTag(DetailTags.seasonToggle(1)))
@@ -276,6 +309,7 @@ class DetailContentTest {
     @Test
     fun seasonHeaderShowsItsCounter() {
         compose.setThemedContent { DetailContent(state = seriesState(watched = 2)) }
+        openEpisodesTab()
 
         compose.onNodeWithText("Сезон 1").assertIsDisplayed()
         compose.onNodeWithText("2 / 4").assertIsDisplayed()

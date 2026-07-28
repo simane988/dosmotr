@@ -154,3 +154,11 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
+
+// connectedAndroidTest installs the app, runs, then uninstalls it again — which left
+// the phone without a build to use. Reinstalling afterwards keeps the latest debug
+// build on the device without also leaving the instrumentation APK behind (which the
+// `leaveApksInstalledAfterRun` flag would). finalizedBy runs even when tests fail.
+tasks.matching { it.name == "connectedDebugAndroidTest" }.configureEach {
+    finalizedBy("installDebug")
+}

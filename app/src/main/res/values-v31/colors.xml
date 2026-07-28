@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- On Android 12+ the Compose theme takes its colours from the wallpaper, so the
+         window background has to follow the same source or the launch frame mismatches. -->
+    <color name="window_background">@android:color/system_neutral1_10</color>
+</resources>
