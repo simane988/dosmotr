@@ -205,7 +205,7 @@ fun DetailContent(
             Column(Modifier.fillMaxSize().statusBarsPadding()) {
                 DetailTopBar(
                     name = item?.title?.name.orEmpty(),
-                    canRefresh = item?.title?.tmdbId != null,
+                    canRefresh = item?.title?.catalogId != null,
                     onBack = onBack,
                     onRefresh = onRefresh,
                     onDelete = { confirmDelete = true },
@@ -328,7 +328,7 @@ private fun DetailTopBar(
             modifier = Modifier.weight(1f),
         )
         if (canRefresh) {
-            BarIcon(Icons.Filled.Refresh, "Обновить из TMDB", onRefresh, DetailTags.REFRESH)
+            BarIcon(Icons.Filled.Refresh, "Обновить", onRefresh, DetailTags.REFRESH)
         }
         BarIcon(Icons.Filled.Delete, "Удалить", onDelete, DetailTags.DELETE)
     }
@@ -375,7 +375,7 @@ private fun Header(item: TitleWithProgress) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            title.tmdbRating?.takeIf { it > 0 }?.let {
+            title.catalogRating?.takeIf { it > 0 }?.let {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -387,7 +387,7 @@ private fun Header(item: TitleWithProgress) {
                         tint = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.size(16.dp),
                     )
-                    Text("%.1f TMDB".format(it), style = MaterialTheme.typography.bodySmall)
+                    Text("%.1f".format(it), style = MaterialTheme.typography.bodySmall)
                 }
             }
             if (title.runtimeMinutes > 0) {

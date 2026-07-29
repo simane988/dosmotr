@@ -6,12 +6,12 @@ import com.g3ck0.seriestracker.data.remote.SearchResponseDto
 import com.g3ck0.seriestracker.data.remote.SearchResultDto
 import com.g3ck0.seriestracker.data.remote.SeasonDetailsDto
 import com.g3ck0.seriestracker.data.remote.SeasonSummaryDto
-import com.g3ck0.seriestracker.data.remote.TmdbApi
+import com.g3ck0.seriestracker.data.remote.CatalogApi
 import com.g3ck0.seriestracker.data.remote.TvDetailsDto
 import java.io.IOException
 
-/** Scriptable [TmdbApi]: set the responses a test needs, or make any call fail. */
-class FakeTmdbApi : TmdbApi {
+/** Scriptable [CatalogApi]: set the responses a test needs, or make any call fail. */
+class FakeCatalogApi : CatalogApi {
 
     var searchResults: List<SearchResultDto> = emptyList()
     var trendingResults: List<SearchResultDto> = emptyList()
@@ -28,7 +28,7 @@ class FakeTmdbApi : TmdbApi {
         private set
     val requestedSeasons = mutableListOf<Int>()
 
-    override suspend fun searchMulti(query: String, page: Int, includeAdult: Boolean): SearchResponseDto {
+    override suspend fun searchMulti(query: String, page: Int): SearchResponseDto {
         failure?.let { throw it }
         searchCalls++
         lastQuery = query

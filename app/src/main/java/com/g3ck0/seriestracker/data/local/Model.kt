@@ -26,13 +26,16 @@ enum class WatchStatus(val libraryOrder: Int) {
 }
 
 /**
- * One tracked series or movie. [id] is stable and human-readable so a TMDB title
+ * One tracked series or movie. [id] is stable and human-readable so a catalogue title
  * can never be added twice: "tv_1399", "movie_550", "local_<uuid>".
  */
 @Entity(tableName = "titles")
 data class TitleEntity(
     @PrimaryKey val id: String,
-    val tmdbId: Int?,
+    // The column names predate the backend and stay put: the database is built with
+    // fallbackToDestructiveMigration(), so renaming a column without writing a migration
+    // wipes every existing library.
+    @ColumnInfo(name = "tmdbId") val catalogId: Int?,
     val mediaType: MediaType,
     val name: String,
     val overview: String = "",
@@ -42,7 +45,8 @@ data class TitleEntity(
     val status: WatchStatus = WatchStatus.WATCHING,
     /** User score 1..10, null when not rated. */
     val userRating: Int? = null,
-    val tmdbRating: Double? = null,
+    /** Score from the catalogue, 0..10. [userRating] is the user's own. */
+    @ColumnInfo(name = "tmdbRating") val catalogRating: Double? = null,
     /** Minutes per episode for TV, total runtime for a movie. */
     val runtimeMinutes: Int = 0,
     val addedAt: Long = System.currentTimeMillis(),
@@ -50,7 +54,7 @@ data class TitleEntity(
     val notes: String = "",
     /** Movies have no episode rows; this is their watched flag. */
     val movieWatched: Boolean = false,
-    /** False until seasons/episodes were pulled from TMDB. */
+    /** False until seasons/episodes were pulled from the backend. */
     val episodesLoaded: Boolean = false,
 ) {
     val isMovie: Boolean get() = mediaType == MediaType.MOVIE

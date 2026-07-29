@@ -2,5 +2,9 @@
 # sdk.dir points at your Android SDK (Android Studio writes it automatically).
 sdk.dir=/home/YOU/Android/Sdk
 
-# Free API key (v3 auth) from https://www.themoviedb.org/settings/api
-tmdb.apiKey=
+# The backend the app gets titles from — see the dosmotr-backend repo. The token is the
+# only credential the app carries; whatever catalogue the backend reads from stays there.
+# Fill in the token, or comment out both lines: without a URL the app still builds and
+# manual entry works, but a URL with an empty token fails the build on purpose.
+backend.url=https://dosmotr.g3ck0-tech.ru
+backend.token=

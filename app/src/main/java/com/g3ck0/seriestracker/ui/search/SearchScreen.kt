@@ -63,7 +63,7 @@ object SearchTags {
     const val LIST = "search:list"
     const val MANUAL_FAB = "search:manualFab"
     const val LOADING = "search:loading"
-    const val NO_API_KEY = "search:noApiKey"
+    const val NO_BACKEND = "search:noBackend"
     const val ERROR = "search:error"
     const val EMPTY = "search:empty"
     fun add(id: String) = "search:add:$id"
@@ -140,7 +140,7 @@ fun SearchContent(
                     value = state.query,
                     onValueChange = onQueryChange,
                     placeholder = "Сериал или фильм",
-                    enabled = state.hasApiKey,
+                    enabled = state.hasBackend,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { onSearchNow() }),
                     trailing = {
@@ -173,7 +173,7 @@ fun SearchContent(
                 }
 
                 when {
-                    !state.hasApiKey -> NoApiKey(onManual = { manualDialog = true })
+                    !state.hasBackend -> NoBackend(onManual = { manualDialog = true })
 
                     state.error != null -> ErrorBlock(message = state.error, onRetry = onSearchNow)
 
@@ -319,12 +319,12 @@ private fun ResultCard(
 }
 
 @Composable
-private fun NoApiKey(onManual: () -> Unit) {
+private fun NoBackend(onManual: () -> Unit) {
     CenteredMessage(
-        tag = SearchTags.NO_API_KEY,
+        tag = SearchTags.NO_BACKEND,
         title = "Поиск недоступен",
-        body = "Добавь строку tmdb.apiKey=… в local.properties и пересобери приложение. " +
-            "Ключ бесплатный: themoviedb.org → Settings → API.",
+        body = "Добавь в local.properties строки backend.url=… и backend.token=… " +
+            "и пересобери приложение.",
         actionLabel = "Добавить вручную",
         onAction = onManual,
     )
@@ -335,7 +335,7 @@ private fun NothingFound(query: String, onManual: () -> Unit) {
     CenteredMessage(
         tag = SearchTags.EMPTY,
         title = "Ничего не найдено",
-        body = "По запросу «$query» в TMDB ничего нет. Проверь написание или добавь запись вручную.",
+        body = "По запросу «$query» ничего не нашлось. Проверь написание или добавь запись вручную.",
         actionLabel = "Добавить вручную",
         onAction = onManual,
     )

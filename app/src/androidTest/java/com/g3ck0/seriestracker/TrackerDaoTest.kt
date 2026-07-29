@@ -52,7 +52,7 @@ class TrackerDaoTest {
         movieWatched: Boolean = false,
     ) = TitleEntity(
         id = id,
-        tmdbId = 1,
+        catalogId = 1,
         mediaType = type,
         name = id,
         status = status,

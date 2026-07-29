@@ -43,7 +43,7 @@ class DarkThemeTest {
     private val series = TitleWithProgress(
         title = TitleEntity(
             id = "tv_1",
-            tmdbId = 1,
+            catalogId = 1,
             mediaType = MediaType.TV,
             name = "Уэнздей",
             overview = "Описание",
@@ -109,10 +109,10 @@ class DarkThemeTest {
     @Test
     fun searchRendersInDark() {
         compose.setThemedContent(darkTheme = true) {
-            SearchContent(state = SearchUiState(hasApiKey = false))
+            SearchContent(state = SearchUiState(hasBackend = false))
         }
 
-        compose.onNodeWithTag(SearchTags.NO_API_KEY).assertIsDisplayed()
+        compose.onNodeWithTag(SearchTags.NO_BACKEND).assertIsDisplayed()
         compose.onNodeWithText("Поиск недоступен").assertIsDisplayed()
     }
 

@@ -3,7 +3,7 @@ package com.g3ck0.seriestracker
 import app.cash.turbine.test
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
-import com.g3ck0.seriestracker.fake.FakeTmdbApi
+import com.g3ck0.seriestracker.fake.FakeCatalogApi
 import com.g3ck0.seriestracker.fake.FakeTrackerDao
 import com.g3ck0.seriestracker.fake.MainDispatcherRule
 import com.g3ck0.seriestracker.fake.awaitUntil
@@ -22,7 +22,7 @@ class StatsViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val dao = FakeTrackerDao()
-    private val repository = TrackerRepository(dao, FakeTmdbApi(), "key")
+    private val repository = TrackerRepository(dao, FakeCatalogApi(), "key")
 
     @Test
     fun `empty library reports zeroes`() = runTest {

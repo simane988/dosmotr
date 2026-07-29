@@ -16,7 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.g3ck0.seriestracker.data.remote.TmdbImage
+import com.g3ck0.seriestracker.data.remote.CatalogImage
 
 /** Poster with a readable fallback — manual entries have no artwork at all. */
 @Composable
@@ -26,7 +26,7 @@ fun Poster(
     modifier: Modifier = Modifier,
     corner: Int = 12,
 ) {
-    val url = TmdbImage.poster(path)
+    val url = CatalogImage.poster(path)
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(corner.dp))

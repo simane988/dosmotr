@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -62,6 +63,7 @@ import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.backup.BackupRepository.ImportMode
 import com.g3ck0.seriestracker.ui.FloatingNavClearance
+import com.g3ck0.seriestracker.ui.about.AboutDialog
 import com.g3ck0.seriestracker.ui.backup.BackupViewModel
 import com.g3ck0.seriestracker.ui.common.ClearFocusWhenDialogCloses
 import com.g3ck0.seriestracker.ui.common.DesignChip
@@ -80,6 +82,7 @@ object LibraryTags {
     const val TOP_MENU = "library:topMenu"
     const val EXPORT = "library:export"
     const val IMPORT = "library:import"
+    const val ABOUT = "library:about"
     const val FAB = "library:fab"
     fun card(titleId: String) = "library:card:$titleId"
     fun markNext(titleId: String) = "library:markNext:$titleId"
@@ -195,6 +198,9 @@ fun LibraryContent(
     onImport: () -> Unit = {},
 ) {
     val snackbar = remember { SnackbarHostState() }
+    var aboutOpen by remember { mutableStateOf(false) }
+
+    if (aboutOpen) AboutDialog(onDismiss = { aboutOpen = false })
 
     LaunchedEffect(message) {
         message?.let {
@@ -210,6 +216,7 @@ fun LibraryContent(
                     title = "Моя библиотека",
                     onExport = onExport,
                     onImport = onImport,
+                    onAbout = { aboutOpen = true },
                 )
 
                 PillSearchField(
@@ -276,7 +283,12 @@ fun LibraryContent(
 
 /** Large top app bar from the mock: 32sp title, menu button on its own container. */
 @Composable
-private fun LargeHeader(title: String, onExport: () -> Unit, onImport: () -> Unit) {
+private fun LargeHeader(
+    title: String,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+    onAbout: () -> Unit,
+) {
     var menuOpen by remember { mutableStateOf(false) }
 
     Row(
@@ -321,6 +333,12 @@ private fun LargeHeader(title: String, onExport: () -> Unit, onImport: () -> Uni
                     leadingIcon = { Icon(Icons.Filled.FileUpload, contentDescription = null) },
                     onClick = { menuOpen = false; onImport() },
                     modifier = Modifier.testTag(LibraryTags.IMPORT),
+                )
+                DropdownMenuItem(
+                    text = { Text("О приложении") },
+                    leadingIcon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                    onClick = { menuOpen = false; onAbout() },
+                    modifier = Modifier.testTag(LibraryTags.ABOUT),
                 )
             }
         }

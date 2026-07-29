@@ -2,6 +2,7 @@ package com.g3ck0.seriestracker.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.g3ck0.seriestracker.ui.about.AboutTags
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -34,7 +35,7 @@ class LibraryContentTest {
     ) = TitleWithProgress(
         title = TitleEntity(
             id = id,
-            tmdbId = 1,
+            catalogId = 1,
             mediaType = MediaType.TV,
             name = name,
             status = status,
@@ -48,7 +49,7 @@ class LibraryContentTest {
         TitleWithProgress(
             title = TitleEntity(
                 id = id,
-                tmdbId = 5,
+                catalogId = 5,
                 mediaType = MediaType.MOVIE,
                 name = name,
                 status = if (watched) WatchStatus.COMPLETED else WatchStatus.PLANNED,
@@ -293,6 +294,39 @@ class LibraryContentTest {
         compose.onNodeWithText("Отмечено: S01E04").assertIsDisplayed()
         // The message is acknowledged only once the snackbar finishes showing.
         compose.waitUntil(timeoutMillis = 10_000) { shown == 1 }
+    }
+
+    @Test
+    fun topMenuOpensAboutWithTheTmdbAttribution() {
+        compose.setThemedContent {
+            LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
+        }
+
+        compose.onNodeWithTag(LibraryTags.TOP_MENU).performClick()
+        compose.onNodeWithTag(LibraryTags.ABOUT).performClick()
+
+        compose.onNodeWithTag(AboutTags.DIALOG).assertExists()
+        compose.onNodeWithTag(AboutTags.VERSION).assertIsDisplayed()
+        compose.onNodeWithTag(AboutTags.REPO).assertIsDisplayed()
+        compose.onNodeWithText("github.com/simane988/dosmotr").assertIsDisplayed()
+        // TMDB requires this sentence verbatim, so the test spells it out in full.
+        compose.onNodeWithText(
+            "This application uses TMDB and the TMDB APIs but is not endorsed, " +
+                "certified, or otherwise approved by TMDB."
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun aboutClosesOnItsButton() {
+        compose.setThemedContent {
+            LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
+        }
+
+        compose.onNodeWithTag(LibraryTags.TOP_MENU).performClick()
+        compose.onNodeWithTag(LibraryTags.ABOUT).performClick()
+        compose.onNodeWithTag(AboutTags.CLOSE).performClick()
+
+        compose.onNodeWithTag(AboutTags.DIALOG).assertDoesNotExist()
     }
 
     @Test

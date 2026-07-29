@@ -24,7 +24,7 @@ data class SearchUiState(
     val error: String? = null,
     val message: String? = null,
     val showingTrending: Boolean = true,
-    val hasApiKey: Boolean = true,
+    val hasBackend: Boolean = true,
 )
 
 @HiltViewModel
@@ -32,7 +32,7 @@ class SearchViewModel @Inject constructor(
     private val repository: TrackerRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(SearchUiState(hasApiKey = repository.hasApiKey))
+    private val _state = MutableStateFlow(SearchUiState(hasBackend = repository.hasBackend))
     val state: StateFlow<SearchUiState> = _state.asStateFlow()
 
     /** Ids already in the library, so the list can show "Добавлено" instead of a button. */
@@ -42,7 +42,7 @@ class SearchViewModel @Inject constructor(
     private var searchJob: Job? = null
 
     init {
-        if (repository.hasApiKey) loadTrending()
+        if (repository.hasBackend) loadTrending()
     }
 
     fun onQueryChange(query: String) {
@@ -66,7 +66,7 @@ class SearchViewModel @Inject constructor(
     }
 
     private suspend fun runSearch(query: String) {
-        if (!repository.hasApiKey) return
+        if (!repository.hasBackend) return
         _state.value = _state.value.copy(loading = true, error = null)
         repository.search(query)
             .onSuccess {
@@ -85,7 +85,7 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun loadTrending() = viewModelScope.launch {
-        if (!repository.hasApiKey) return@launch
+        if (!repository.hasBackend) return@launch
         _state.value = _state.value.copy(loading = true, error = null)
         repository.trending()
             .onSuccess {

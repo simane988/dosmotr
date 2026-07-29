@@ -74,7 +74,7 @@ class DetailViewModel @Inject constructor(
         // Titles added while offline never got their episode list — fill it in on open.
         viewModelScope.launch {
             val entity = repository.observeTitle(titleId).filterNotNull().first().title
-            if (!entity.episodesLoaded && entity.tmdbId != null) refresh()
+            if (!entity.episodesLoaded && entity.catalogId != null) refresh()
         }
     }
 
@@ -124,9 +124,9 @@ class DetailViewModel @Inject constructor(
 
     fun refresh() = viewModelScope.launch {
         refreshing.value = true
-        repository.refreshFromTmdb(titleId)
+        repository.refreshFromBackend(titleId)
             .onFailure { message.value = it.message ?: "Не удалось обновить" }
-            .onSuccess { message.value = "Обновлено из TMDB" }
+            .onSuccess { message.value = "Обновлено" }
         refreshing.value = false
     }
 

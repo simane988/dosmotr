@@ -50,7 +50,7 @@ class BackupRepositoryTest {
         dao.upsertTitle(
             TitleEntity(
                 id = id,
-                tmdbId = 1,
+                catalogId = 1,
                 mediaType = MediaType.TV,
                 name = "Series $id",
                 status = status,
@@ -234,7 +234,7 @@ class BackupRepositoryTest {
         dao.upsertTitle(
             TitleEntity(
                 id = "movie_1",
-                tmdbId = 5,
+                catalogId = 5,
                 mediaType = MediaType.MOVIE,
                 name = "Film",
                 movieWatched = true,
