@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Claude Design mock, logo variant 4b: a filled eye silhouette with the play
+     triangle cut straight through it. One path, one colour, even-odd fill.
+     The 48x48 artwork is scaled to 66dp and centred, which keeps it inside the
+     72dp safe zone of the 108dp adaptive icon. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#FF6FD3"
-        android:pathData="M30,36h48a4,4 0 0 1 4,4v28a4,4 0 0 1 -4,4h-48a4,4 0 0 1 -4,-4v-28a4,4 0 0 1 4,-4zM30,42v24h48v-24z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M48,48l16,6l-16,6z" />
+    <group
+        android:scaleX="1.375"
+        android:scaleY="1.375"
+        android:translateX="21"
+        android:translateY="21">
+        <path
+            android:fillColor="#E4E1E9"
+            android:fillType="evenOdd"
+            android:pathData="M4,24c6,-10.4 12.7,-15.6 20,-15.6S38,13.6 44,24c-6,10.4 -12.7,15.6 -20,15.6S10,34.4 4,24zM19.8,16.8v14.4L32,24z" />
+    </group>
 </vector>
