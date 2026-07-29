@@ -173,6 +173,13 @@ feature/<name> ──▶ develop ──▶ release/<x.y.z> ──▶ master
   `master` *and* back into `develop`, or the version bump CI made lives only on a branch
   nobody reads again.
 
+**Never merge into `develop` or `master` locally.** Every arrow into those two branches
+is a pull request on GitHub — the merge is the reviewable event, and a local merge pushed
+straight to `origin/develop` lands the change with no review and auto-closes an open PR.
+So "get this feature into develop" means: finish it on `feature/<name>`, push that branch,
+`gh pr create --base develop`, and stop — merging the PR is not yours to do. Afterwards
+sync with `git pull`, never with a local merge.
+
 Nothing about the release is typed by hand. `.github/workflows/release.yml` reads the
 version out of the branch name, bumps `versionCode` in `version.properties`, commits that
 back with `[skip ci]` (without which the push would start the workflow over), builds the
