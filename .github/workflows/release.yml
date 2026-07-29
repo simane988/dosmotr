@@ -16,11 +16,11 @@ permissions:
   contents: write
 
 env:
+  # Quoted on purpose — see the same block in ci.yml.
   GRADLE_ARGS: >-
-    --no-daemon
-    -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+    --no-daemon --parallel
+    -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
     -Dkotlin.daemon.jvmargs=-Xmx2g
-    -Porg.gradle.parallel=true
 
 jobs:
   publish:

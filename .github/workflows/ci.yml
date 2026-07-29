@@ -15,11 +15,12 @@ concurrency:
 env:
   # gradle.properties is tuned for an 8 GB laptop; a runner has 16 GB and no OOM killer
   # waiting for it, so the build gets room here instead of everywhere.
+  # The jvmargs value has to stay quoted: unquoted, the shell splits it and Gradle reads
+  # -XX:MaxMetaspaceSize as its own (unknown) option.
   GRADLE_ARGS: >-
-    --no-daemon
-    -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+    --no-daemon --parallel
+    -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
     -Dkotlin.daemon.jvmargs=-Xmx2g
-    -Porg.gradle.parallel=true
 
 jobs:
   unit:
