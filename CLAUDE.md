@@ -151,10 +151,43 @@ Animation work is verified by slowing the device down
 (`adb shell settings put global animator_duration_scale 8`), capturing a frame, then
 restoring `1.0`. That shows geometry and colour, not smoothness.
 
-## Branches
+## Branches and releases
 
-`master` is the pre-redesign app; `redesign` carries the Claude Design variant B work and
-is currently ahead. Remote is `git@github.com:simane988/dosmotr.git` — **public**, and the
-"О приложении" dialog links to it, so anything committed here is published. `local.properties`
-and `keystore/` are gitignored and have never been committed; keep it that way, because on a
-public repo a leaked `backend.token` is a leaked backend and a leaked keystore is permanent.
+Remote is `git@github.com:simane988/dosmotr.git` — **public**, and the "О приложении"
+dialog links to it, so anything committed here is published. `local.properties` and
+`keystore/` are gitignored and have never been committed; keep it that way, because on a
+public repo a leaked `backend.token` is a leaked backend and a leaked keystore is
+permanent.
+
+```
+feature/<name> ──▶ develop ──▶ release/<x.y.z> ──▶ master
+                                     │
+                                     └─▶ GitHub Release + signed APK
+```
+
+- `master` is what is published — every commit on it is a shipped version.
+- `develop` is where finished features accumulate.
+- `feature/<name>` branches off `develop` and merges back into it.
+- `release/<x.y.z>` branches off `develop`. **Pushing it is what publishes**, so the
+  branch name is the version: `release/1.2.0` becomes `v1.2.0`. Afterwards merge it into
+  `master` *and* back into `develop`, or the version bump CI made lives only on a branch
+  nobody reads again.
+
+Nothing about the release is typed by hand. `.github/workflows/release.yml` reads the
+version out of the branch name, bumps `versionCode` in `version.properties`, commits that
+back with `[skip ci]` (without which the push would start the workflow over), builds the
+signed APK and attaches it to a GitHub Release tagged on the release branch.
+`version.properties` is the only place a version lives — `app/build.gradle.kts` reads it,
+so do not put literals back into `defaultConfig`, and do not edit the file on a release
+branch by hand: CI rewrites it there.
+
+`.github/workflows/ci.yml` runs on every branch above and on pull requests into `master`
+and `develop`: JVM tests plus the full instrumented suite on an API 35 emulator. It builds
+*without* backend credentials on purpose — that is what keeps a build with no
+`backend.url` working, since the search screen's empty state depends on it.
+
+Releasing needs six repository secrets, and CI fails loudly if any is missing:
+`KEYSTORE_BASE64` (`base64 -w0 keystore/dosmotr-release.jks`), `KEYSTORE_PASSWORD`,
+`KEY_ALIAS`, `KEY_PASSWORD`, `BACKEND_URL`, `BACKEND_TOKEN`. They exist only as secrets
+and are written into `local.properties` for the length of one job, so the build has
+exactly one way to find them either way.

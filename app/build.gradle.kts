@@ -26,6 +26,12 @@ if (backendUrl.isNotEmpty() && backendToken.isEmpty()) {
     error("backend.url is set but backend.token is empty — see the dosmotr-backend repo")
 }
 
+// version.properties is committed and CI rewrites it on a release branch, so the version
+// in a build always matches a commit someone can point at.
+val versionProps = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}
+
 val releaseStoreFile: File? = localProps.getProperty("release.storeFile")
     ?.let { rootProject.file(it) }
     ?.takeIf { it.exists() }
@@ -41,8 +47,8 @@ android {
         applicationId = "com.g3ck0.dosmotr"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = versionProps.getProperty("versionCode").toInt()
+        versionName = versionProps.getProperty("versionName")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
