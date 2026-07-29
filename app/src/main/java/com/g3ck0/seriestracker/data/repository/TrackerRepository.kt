@@ -8,8 +8,8 @@ import com.g3ck0.seriestracker.data.local.TrackerDao
 import com.g3ck0.seriestracker.data.local.WatchStats
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.remote.SearchResultDto
-import com.g3ck0.seriestracker.data.remote.TmdbApi
-import com.g3ck0.seriestracker.di.TmdbApiKey
+import com.g3ck0.seriestracker.data.remote.CatalogApi
+import com.g3ck0.seriestracker.di.BackendToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -20,11 +20,11 @@ import javax.inject.Singleton
 @Singleton
 class TrackerRepository @Inject constructor(
     private val dao: TrackerDao,
-    private val api: TmdbApi,
-    @TmdbApiKey private val apiKey: String,
+    private val api: CatalogApi,
+    @BackendToken private val apiKey: String,
 ) {
 
-    val hasApiKey: Boolean get() = apiKey.isNotBlank()
+    val hasBackend: Boolean get() = apiKey.isNotBlank()
 
     // --- reads ---
 
@@ -63,12 +63,12 @@ class TrackerRepository @Inject constructor(
     // --- discovery ---
 
     suspend fun search(query: String): Result<List<SearchItem>> = runCatching {
-        requireApiKey()
+        requireBackend()
         api.searchMulti(query).results.mapNotNull { it.toSearchItem() }
     }
 
     suspend fun trending(): Result<List<SearchItem>> = runCatching {
-        requireApiKey()
+        requireBackend()
         api.trending().results.mapNotNull { it.toSearchItem() }
     }
 
@@ -81,7 +81,7 @@ class TrackerRepository @Inject constructor(
             dao.upsertTitle(
                 TitleEntity(
                     id = id,
-                    tmdbId = item.tmdbId,
+                    catalogId = item.catalogId,
                     mediaType = item.mediaType,
                     name = item.name,
                     overview = item.overview,
@@ -89,14 +89,14 @@ class TrackerRepository @Inject constructor(
                     backdropPath = item.backdropPath,
                     year = item.year,
                     status = status,
-                    tmdbRating = item.voteAverage,
+                    catalogRating = item.voteAverage,
                 )
             )
-            runCatching { refreshFromTmdb(id) }
+            runCatching { refreshFromBackend(id) }
             id
         }
 
-    /** Manual entry for anything TMDB does not have. [episodesPerSeason] is empty for movies. */
+    /** Manual entry for anything the catalogue lacks. [episodesPerSeason] is empty for movies. */
     suspend fun addManual(
         name: String,
         mediaType: MediaType,
@@ -109,7 +109,7 @@ class TrackerRepository @Inject constructor(
         dao.upsertTitle(
             TitleEntity(
                 id = id,
-                tmdbId = null,
+                catalogId = null,
                 mediaType = mediaType,
                 name = name,
                 year = year,
@@ -139,14 +139,14 @@ class TrackerRepository @Inject constructor(
      * Re-pulls metadata and episode lists. Episodes are inserted with IGNORE, so
      * newly aired ones show up while watched flags stay untouched.
      */
-    suspend fun refreshFromTmdb(titleId: String): Result<Unit> = runCatching {
-        requireApiKey()
+    suspend fun refreshFromBackend(titleId: String): Result<Unit> = runCatching {
+        requireBackend()
         val title = dao.getTitle(titleId) ?: error("Тайтл не найден")
-        val tmdbId = title.tmdbId ?: return@runCatching
+        val catalogId = title.catalogId ?: return@runCatching
 
         when (title.mediaType) {
             MediaType.TV -> {
-                val details = api.tvDetails(tmdbId)
+                val details = api.tvDetails(catalogId)
                 val perEpisode = details.episodeRunTime.firstOrNull() ?: DEFAULT_EPISODE_MINUTES
                 dao.updateTitle(
                     title.copy(
@@ -155,7 +155,7 @@ class TrackerRepository @Inject constructor(
                         posterPath = details.posterPath ?: title.posterPath,
                         backdropPath = details.backdropPath ?: title.backdropPath,
                         year = details.firstAirDate?.take(4) ?: title.year,
-                        tmdbRating = details.voteAverage ?: title.tmdbRating,
+                        catalogRating = details.voteAverage ?: title.catalogRating,
                         runtimeMinutes = perEpisode,
                         episodesLoaded = true,
                     )
@@ -163,7 +163,7 @@ class TrackerRepository @Inject constructor(
                 // Season 0 is specials — skip it, it inflates progress for no reason.
                 val seasons = details.seasons.filter { it.seasonNumber > 0 && it.episodeCount > 0 }
                 for (season in seasons) {
-                    val fetched = runCatching { api.season(tmdbId, season.seasonNumber) }.getOrNull()
+                    val fetched = runCatching { api.season(catalogId, season.seasonNumber) }.getOrNull()
                         ?: continue
                     dao.insertEpisodes(
                         fetched.episodes.map { episode ->
@@ -183,7 +183,7 @@ class TrackerRepository @Inject constructor(
             }
 
             MediaType.MOVIE -> {
-                val details = api.movieDetails(tmdbId)
+                val details = api.movieDetails(catalogId)
                 dao.updateTitle(
                     title.copy(
                         name = details.title.ifBlank { title.name },
@@ -191,7 +191,7 @@ class TrackerRepository @Inject constructor(
                         posterPath = details.posterPath ?: title.posterPath,
                         backdropPath = details.backdropPath ?: title.backdropPath,
                         year = details.releaseDate?.take(4) ?: title.year,
-                        tmdbRating = details.voteAverage ?: title.tmdbRating,
+                        catalogRating = details.voteAverage ?: title.catalogRating,
                         runtimeMinutes = details.runtime ?: title.runtimeMinutes,
                         episodesLoaded = true,
                     )
@@ -269,8 +269,8 @@ class TrackerRepository @Inject constructor(
         }
     }
 
-    private fun requireApiKey() {
-        check(hasApiKey) { "Нет TMDB API-ключа. Добавь tmdb.apiKey в local.properties." }
+    private fun requireBackend() {
+        check(hasBackend) { "Бэкенд не настроен. Добавь backend.url и backend.token в local.properties." }
     }
 
     private companion object {
@@ -282,11 +282,11 @@ private fun SearchResultDto.toSearchItem(): SearchItem? {
     val type = when (mediaType) {
         "tv" -> MediaType.TV
         "movie" -> MediaType.MOVIE
-        else -> return null // person results and anything new TMDB adds
+        else -> return null // people, and anything new the catalogue starts returning
     }
     val displayName = (name ?: title)?.takeIf { it.isNotBlank() } ?: return null
     return SearchItem(
-        tmdbId = id,
+        catalogId = id,
         mediaType = type,
         name = displayName,
         overview = overview,

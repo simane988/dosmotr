@@ -42,7 +42,7 @@ object ManualAddTags {
 }
 
 /**
- * Manual entry for titles TMDB does not have (or when offline).
+ * Manual entry for titles the catalogue does not have (or when offline).
  * Seasons are described as a comma separated episode count per season: "12, 10, 8".
  */
 @Composable

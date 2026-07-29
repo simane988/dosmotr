@@ -4,7 +4,7 @@ import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import com.g3ck0.seriestracker.data.repository.titleIdOf
-import com.g3ck0.seriestracker.fake.FakeTmdbApi
+import com.g3ck0.seriestracker.fake.FakeCatalogApi
 import com.g3ck0.seriestracker.fake.FakeTrackerDao
 import com.g3ck0.seriestracker.fake.episodesFor
 import com.g3ck0.seriestracker.fake.movieResult
@@ -28,7 +28,7 @@ import java.io.IOException
 class TrackerRepositoryTest {
 
     private val dao = FakeTrackerDao()
-    private val api = FakeTmdbApi()
+    private val api = FakeCatalogApi()
 
     private fun repository(apiKey: String = "key") = TrackerRepository(dao, api, apiKey)
 
@@ -38,7 +38,7 @@ class TrackerRepositoryTest {
     fun `no api key disables search`() = runTest {
         val repo = repository(apiKey = "")
 
-        assertFalse(repo.hasApiKey)
+        assertFalse(repo.hasBackend)
         assertTrue(repo.search("anything").isFailure)
         assertTrue(repo.trending().isFailure)
     }
@@ -80,7 +80,7 @@ class TrackerRepositoryTest {
     fun `add stores title even when details fetch fails`() = runTest {
         api.failure = IOException("offline")
         val item = com.g3ck0.seriestracker.data.repository.SearchItem(
-            tmdbId = 42,
+            catalogId = 42,
             mediaType = MediaType.TV,
             name = "Offline Series",
             overview = "o",
@@ -105,7 +105,7 @@ class TrackerRepositoryTest {
         api.tvDetails = tvDetailsOf(7, "Show", seasonSizes = mapOf(0 to 3, 1 to 2, 2 to 2))
         api.seasons = mapOf(1 to seasonOf(1, 2), 2 to seasonOf(2, 2))
         val item = com.g3ck0.seriestracker.data.repository.SearchItem(
-            tmdbId = 7, mediaType = MediaType.TV, name = "Show", overview = "",
+            catalogId = 7, mediaType = MediaType.TV, name = "Show", overview = "",
             posterPath = null, backdropPath = null, year = null, voteAverage = null,
         )
 
@@ -120,13 +120,13 @@ class TrackerRepositoryTest {
     @Test
     fun `refresh keeps watched flags and adds newly aired episodes`() = runTest {
         val id = titleIdOf(MediaType.TV, 7)
-        dao.seedTitle(tvTitle(id = id, tmdbId = 7, episodesLoaded = true))
+        dao.seedTitle(tvTitle(id = id, catalogId = 7, episodesLoaded = true))
         dao.seedEpisodes(episodesFor(id, mapOf(1 to 2)))
         repository().setEpisodeWatched(id, 1, 1, watched = true)
 
         api.tvDetails = tvDetailsOf(7, "Show", seasonSizes = mapOf(1 to 4))
         api.seasons = mapOf(1 to seasonOf(1, 4))
-        repository().refreshFromTmdb(id).getOrThrow()
+        repository().refreshFromBackend(id).getOrThrow()
 
         val episodes = dao.getEpisodes(id)
         assertEquals(4, episodes.size)
@@ -136,12 +136,12 @@ class TrackerRepositoryTest {
 
     @Test
     fun `refresh of a movie fills runtime`() = runTest {
-        dao.seedTitle(movieTitle(id = "movie_5", tmdbId = 5, runtimeMinutes = 0))
+        dao.seedTitle(movieTitle(id = "movie_5", catalogId = 5, runtimeMinutes = 0))
         api.movieDetails = MovieDetailsDto(
             id = 5, title = "Film", overview = "o", releaseDate = "1999-01-01", runtime = 139,
         )
 
-        repository().refreshFromTmdb("movie_5").getOrThrow()
+        repository().refreshFromBackend("movie_5").getOrThrow()
 
         val stored = dao.getTitle("movie_5")!!
         assertEquals(139, stored.runtimeMinutes)

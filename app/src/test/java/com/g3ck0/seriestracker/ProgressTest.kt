@@ -12,7 +12,7 @@ import org.junit.Test
 class ProgressTest {
 
     private fun tv(watched: Int, total: Int) = TitleWithProgress(
-        title = TitleEntity(id = "tv_1", tmdbId = 1, mediaType = MediaType.TV, name = "Test"),
+        title = TitleEntity(id = "tv_1", catalogId = 1, mediaType = MediaType.TV, name = "Test"),
         episodeCount = total,
         watchedCount = watched,
     )
@@ -20,7 +20,7 @@ class ProgressTest {
     private fun movie(watched: Boolean) = TitleWithProgress(
         title = TitleEntity(
             id = "movie_1",
-            tmdbId = 1,
+            catalogId = 1,
             mediaType = MediaType.MOVIE,
             name = "Test",
             movieWatched = watched,

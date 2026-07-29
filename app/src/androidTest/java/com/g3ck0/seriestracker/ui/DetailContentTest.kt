@@ -51,14 +51,14 @@ class DetailContentTest {
     ): DetailUiState {
         val title = TitleEntity(
             id = "tv_1",
-            tmdbId = 1,
+            catalogId = 1,
             mediaType = MediaType.TV,
             name = "Уэнздей",
             overview = "Описание сериала",
             year = "2022",
             status = status,
             userRating = rating,
-            tmdbRating = 8.3,
+            catalogRating = 8.3,
             runtimeMinutes = 45,
             notes = notes,
         )
@@ -75,7 +75,7 @@ class DetailContentTest {
         title = TitleWithProgress(
             TitleEntity(
                 id = "movie_1",
-                tmdbId = 5,
+                catalogId = 5,
                 mediaType = MediaType.MOVIE,
                 name = "Бойцовский клуб",
                 year = "1999",
@@ -97,7 +97,7 @@ class DetailContentTest {
         compose.setThemedContent { DetailContent(state = seriesState()) }
 
         compose.onNodeWithText("Сериал · 2022").assertIsDisplayed()
-        compose.onNodeWithText("8.3 TMDB").assertIsDisplayed()
+        compose.onNodeWithText("8.3").assertIsDisplayed()
         compose.onNodeWithText("~45 мин/серия").assertIsDisplayed()
     }
 
@@ -331,7 +331,7 @@ class DetailContentTest {
     }
 
     @Test
-    fun tmdbTitleOffersRefresh() {
+    fun catalogTitleOffersRefresh() {
         compose.setThemedContent { DetailContent(state = seriesState()) }
 
         compose.onNodeWithTag(DetailTags.REFRESH).assertIsDisplayed()
@@ -340,7 +340,7 @@ class DetailContentTest {
     @Test
     fun manualTitleHasNothingToRefresh() {
         val manual = seriesState().let {
-            it.copy(title = it.title!!.copy(title = it.title!!.title.copy(tmdbId = null)))
+            it.copy(title = it.title!!.copy(title = it.title!!.title.copy(catalogId = null)))
         }
         compose.setThemedContent { DetailContent(state = manual) }
 

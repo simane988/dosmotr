@@ -4,24 +4,29 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 
-interface TmdbApi {
+/**
+ * The backend's catalogue contract. These paths are the app's own and deliberately not
+ * the shape of any upstream provider, so the backend can change where the data comes
+ * from without a new build going out. Language and adult filtering are the backend's
+ * business too — the app does not ask for them.
+ */
+interface CatalogApi {
 
-    @GET("search/multi")
+    @GET("v1/search")
     suspend fun searchMulti(
         @Query("query") query: String,
         @Query("page") page: Int = 1,
-        @Query("include_adult") includeAdult: Boolean = false,
     ): SearchResponseDto
 
-    @GET("trending/all/week")
+    @GET("v1/trending")
     suspend fun trending(): SearchResponseDto
 
-    @GET("tv/{id}")
+    @GET("v1/tv/{id}")
     suspend fun tvDetails(@Path("id") id: Int): TvDetailsDto
 
-    @GET("tv/{id}/season/{season}")
+    @GET("v1/tv/{id}/season/{season}")
     suspend fun season(@Path("id") id: Int, @Path("season") season: Int): SeasonDetailsDto
 
-    @GET("movie/{id}")
+    @GET("v1/movie/{id}")
     suspend fun movieDetails(@Path("id") id: Int): MovieDetailsDto
 }

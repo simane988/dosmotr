@@ -38,12 +38,34 @@ the phone with no build on it. The finalizer runs even when tests fail.
 
 ## Secrets and signing
 
-`local.properties` holds `tmdb.apiKey` and the `release.*` signing credentials;
-`keystore/dosmotr-release.jks` holds the key. Both are gitignored and exist only on this
-machine — losing the keystore means never being able to update a published build.
+`local.properties` holds `backend.url` / `backend.token` and the `release.*` signing
+credentials; `keystore/dosmotr-release.jks` holds the key. Both are gitignored and exist
+only on this machine — losing the keystore means never being able to update a published
+build.
 
-Without a TMDB key the app still builds; the search screen shows an explanatory empty
-state and only manual entry works.
+With no `backend.url` the app still builds; the search screen shows an explanatory empty
+state and only manual entry works. `backend.url` without `backend.token` fails the build
+on purpose — it would otherwise 403 on every call at runtime.
+
+**The app knows one remote: its own backend.** Which catalogue that backend reads from is
+not represented anywhere in this codebase, and deliberately so — the source can change
+server-side without a new build. Concretely: `CatalogApi` speaks the app's own
+`/v1/search`, `/v1/tv/{id}`, `/v1/tv/{id}/season/{n}`, `/v1/movie/{id}`; artwork comes
+from `/img/{size}/{path}` via `CatalogImage`; the single credential is `@BackendToken`,
+sent as `X-Backend-Token`. Language and adult filtering are pinned on the backend, not
+here, because they are properties of the source.
+
+Two persisted names still say `tmdb`: the `tmdbId` / `tmdbRating` columns of `titles` and
+the `tmdb_id` / `tmdb_rating` keys in backup JSON. Kotlin calls them `catalogId` and
+`rating`, mapped with `@ColumnInfo` / `@SerialName`. **Renaming them for real is not a
+cosmetic change**: the database uses `fallbackToDestructiveMigration()`, so a column
+rename without a migration wipes every user's library, and changing the JSON keys breaks
+importing older backups.
+
+The backend is a **separate project**, not part of this build: `~/projects/dosmotr-backend`
+(nginx + Caddy, deployed with Docker Compose). Nothing here depends on it at compile
+time — the coupling is the two `local.properties` values, the `X-Backend-Token` header
+name, and the `/v1` paths above.
 
 ## Memory budget
 
@@ -54,32 +76,34 @@ since what makes debug frame times meaningless is `debuggable`, not the missing 
 
 ## Architecture
 
-`ui` (Compose) → ViewModel → `TrackerRepository` → Room DAO + Retrofit TMDB, wired by Hilt.
+`ui` (Compose) → ViewModel → `TrackerRepository` → Room DAO + Retrofit `CatalogApi`,
+wired by Hilt.
 Room is the single source of truth; the network is only used for search and refresh.
 
 Invariants that are easy to break and expensive to debug:
 
 - **`TitleEntity.id`** is `tv_1399` / `movie_550` / `local_<uuid>`, so the same title
-  cannot be added twice and manual entries never collide with TMDB ones.
+  cannot be added twice and manual entries never collide with catalogue ones.
 - **Movies have no rows in `episodes`** — they carry a `movieWatched` flag. Anything
   iterating episodes must handle that.
 - **Progress is never stored.** `TrackerDao.observeLibrary` computes it with `COUNT(*)`
   subqueries, so it cannot drift out of sync.
 - **`upsertTitle` is `@Upsert`, not `INSERT OR REPLACE`.** REPLACE deletes the row first
   and the FK cascade takes every watched episode with it.
-- **`insertEpisodes` uses `IGNORE`** so a TMDB refresh adds newly aired episodes without
+- **`insertEpisodes` uses `IGNORE`** so a refresh adds newly aired episodes without
   resetting watched flags. `upsertEpisodes` (overwriting) exists only for JSON import.
-- **Season 0 is skipped** when pulling from TMDB — specials otherwise wreck the percentages.
+- **Season 0 is skipped** when pulling from the backend — specials otherwise wreck the
+  percentages.
 - **Library sort order lives twice**: `WatchStatus.libraryOrder` and a `CASE` in the DAO's
   SQL, because Room cannot read an enum field from a query.
   `TrackerDaoTest.sqlOrderMatchesTheEnumOrder` fails if they drift apart.
 - **Status is derived**, not just set: `TrackerRepository.afterProgressChange` completes a
   title on its last episode and pulls a completed one back to watching when unchecked.
-- **TMDB language is pinned to `ru-RU`** (`TMDB_LANGUAGE` in `di/AppModule.kt`), not taken
-  from the device locale — the UI is Russian, and an en-US phone would otherwise mix
-  Russian labels with English synopses.
-- **The API key is injected** via `@TmdbApiKey`, not read from `BuildConfig` at the call
-  site, so tests do not depend on what is in `local.properties`.
+- **Language is pinned to `ru-RU` on the backend**, not taken from the device locale —
+  the UI is Russian, and an en-US phone would otherwise mix Russian labels with English
+  synopses. The app does not send a language at all.
+- **The backend token is injected** via `@BackendToken`, not read from `BuildConfig` at
+  the call site, so tests do not depend on what is in `local.properties`.
 
 UI strings are Russian literals in the composables (only `app_name` is in `strings.xml`).
 Code, comments and commit messages are English.
@@ -91,9 +115,16 @@ stateless and takes state plus callbacks. UI tests drive `XxxContent` directly, 
 need neither Hilt nor a database. Keep that split when adding screens.
 
 Elements are addressed in tests through tag objects (`LibraryTags`, `SearchTags`,
-`DetailTags`, `StatsTags`, `ManualAddTags`, `NavTags`) rather than by text or position —
+`DetailTags`, `StatsTags`, `ManualAddTags`, `NavTags`, `AboutTags`) rather than by text or position —
 preserve the tags when restyling. Tags on text fields belong on the editable node
 (`fieldModifier`), not the container, or `performTextInput` cannot reach them.
+
+**The TMDB attribution is a legal requirement, not decoration.** The library's overflow
+menu opens `AboutDialog`, which carries `res/drawable/ic_tmdb_logo.xml` (TMDB's own asset,
+converted to a vector drawable — do not restyle or recolour it) and their sentence
+verbatim in English. `LibraryContentTest` asserts on the full sentence, so it cannot be
+reworded by accident. The obligation stands while TMDB is the catalogue behind the
+backend, even though the app never talks to TMDB itself.
 
 The current design is the Claude Design mock, variant B: floating navigation pill with a
 highlight that animates to the selected tab's measured bounds, screens split by a
@@ -107,7 +138,7 @@ background and a matching `windowBackground`, the white window flashes between s
 
 ## Tests
 
-JVM tests use hand-written fakes (`fake/FakeTrackerDao`, `fake/FakeTmdbApi`), not mocks.
+JVM tests use hand-written fakes (`fake/FakeTrackerDao`, `fake/FakeCatalogApi`), not mocks.
 `FakeTrackerDao` deliberately mirrors the SQL semantics — conflict strategies, the FK
 cascade, sort order — so **changing the DAO means updating the fake too**; the instrumented
 `TrackerDaoTest` is what proves the real SQL.
@@ -123,4 +154,7 @@ restoring `1.0`. That shows geometry and colour, not smoothness.
 ## Branches
 
 `master` is the pre-redesign app; `redesign` carries the Claude Design variant B work and
-is currently ahead. Remote is `git@github.com:simane988/dosmotr.git` (private).
+is currently ahead. Remote is `git@github.com:simane988/dosmotr.git` — **public**, and the
+"О приложении" dialog links to it, so anything committed here is published. `local.properties`
+and `keystore/` are gitignored and have never been committed; keep it that way, because on a
+public repo a leaked `backend.token` is a leaked backend and a leaked keystore is permanent.

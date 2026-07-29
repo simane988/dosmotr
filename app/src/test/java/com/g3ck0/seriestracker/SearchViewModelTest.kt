@@ -3,7 +3,7 @@ package com.g3ck0.seriestracker
 import app.cash.turbine.test
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
-import com.g3ck0.seriestracker.fake.FakeTmdbApi
+import com.g3ck0.seriestracker.fake.FakeCatalogApi
 import com.g3ck0.seriestracker.fake.FakeTrackerDao
 import com.g3ck0.seriestracker.fake.MainDispatcherRule
 import com.g3ck0.seriestracker.fake.awaitUntil
@@ -31,7 +31,7 @@ class SearchViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val dao = FakeTrackerDao()
-    private val api = FakeTmdbApi()
+    private val api = FakeCatalogApi()
 
     private fun viewModel(apiKey: String = "key") =
         SearchViewModel(TrackerRepository(dao, api, apiKey))
@@ -56,7 +56,7 @@ class SearchViewModelTest {
 
         vm.state.test {
             val state = awaitItem()
-            assertFalse(state.hasApiKey)
+            assertFalse(state.hasBackend)
             assertTrue(state.results.isEmpty())
             assertEquals(0, api.searchCalls)
             cancelAndIgnoreRemainingEvents()

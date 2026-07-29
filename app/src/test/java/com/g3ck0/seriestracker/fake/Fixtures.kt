@@ -8,7 +8,7 @@ import com.g3ck0.seriestracker.data.local.WatchStatus
 
 fun tvTitle(
     id: String = "tv_1",
-    tmdbId: Int? = 1,
+    catalogId: Int? = 1,
     name: String = "Series",
     status: WatchStatus = WatchStatus.WATCHING,
     runtimeMinutes: Int = 40,
@@ -19,7 +19,7 @@ fun tvTitle(
     year: String? = "2020",
 ) = TitleEntity(
     id = id,
-    tmdbId = tmdbId,
+    catalogId = catalogId,
     mediaType = MediaType.TV,
     name = name,
     status = status,
@@ -33,14 +33,14 @@ fun tvTitle(
 
 fun movieTitle(
     id: String = "movie_1",
-    tmdbId: Int? = 1,
+    catalogId: Int? = 1,
     name: String = "Movie",
     status: WatchStatus = WatchStatus.PLANNED,
     runtimeMinutes: Int = 120,
     movieWatched: Boolean = false,
 ) = TitleEntity(
     id = id,
-    tmdbId = tmdbId,
+    catalogId = catalogId,
     mediaType = MediaType.MOVIE,
     name = name,
     status = status,

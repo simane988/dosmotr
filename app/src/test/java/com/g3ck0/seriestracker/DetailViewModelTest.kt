@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
-import com.g3ck0.seriestracker.fake.FakeTmdbApi
+import com.g3ck0.seriestracker.fake.FakeCatalogApi
 import com.g3ck0.seriestracker.fake.FakeTrackerDao
 import com.g3ck0.seriestracker.fake.MainDispatcherRule
 import com.g3ck0.seriestracker.fake.awaitUntil
@@ -32,7 +32,7 @@ class DetailViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val dao = FakeTrackerDao()
-    private val api = FakeTmdbApi()
+    private val api = FakeCatalogApi()
     private val repository = TrackerRepository(dao, api, "key")
 
     private fun viewModel(titleId: String = "tv_1") =
@@ -187,7 +187,7 @@ class DetailViewModelTest {
 
     @Test
     fun `a title opened without episodes refreshes itself`() = runTest {
-        dao.seedTitle(tvTitle(id = "tv_1", tmdbId = 7, episodesLoaded = false))
+        dao.seedTitle(tvTitle(id = "tv_1", catalogId = 7, episodesLoaded = false))
         api.tvDetails = tvDetailsOf(7, "Show", mapOf(1 to 3))
         api.seasons = mapOf(1 to seasonOf(1, 3))
 
@@ -203,7 +203,7 @@ class DetailViewModelTest {
 
     @Test
     fun `a manual title never hits the network`() = runTest {
-        dao.seedTitle(tvTitle(id = "local_x", tmdbId = null, episodesLoaded = false))
+        dao.seedTitle(tvTitle(id = "local_x", catalogId = null, episodesLoaded = false))
         api.failure = IOException("should not be called")
 
         val vm = viewModel(titleId = "local_x")

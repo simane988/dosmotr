@@ -9,14 +9,22 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// Secrets live in local.properties (never committed): the TMDB key and the release
-// signing credentials.
+// Secrets live in local.properties (never committed): the backend credentials and the
+// release signing ones.
 val localProps = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
-val tmdbApiKey: String = localProps.getProperty("tmdb.apiKey", "")
+// The app only ever talks to its own backend (dosmotr-backend). Which catalogue that
+// backend reads from, and what key that needs, is not this build's business.
+val backendUrl: String = localProps.getProperty("backend.url", "").trim().trimEnd('/')
+val backendToken: String = localProps.getProperty("backend.token", "").trim()
+
+if (backendUrl.isNotEmpty() && backendToken.isEmpty()) {
+    // Would build fine and then 403 on every call, which is a confusing way to find out.
+    error("backend.url is set but backend.token is empty — see the dosmotr-backend repo")
+}
 
 val releaseStoreFile: File? = localProps.getProperty("release.storeFile")
     ?.let { rootProject.file(it) }
@@ -38,9 +46,13 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
-        buildConfigField("String", "TMDB_BASE_URL", "\"https://api.themoviedb.org/3/\"")
-        buildConfigField("String", "TMDB_IMAGE_URL", "\"https://image.tmdb.org/t/p/\"")
+        // Retrofit refuses to build on an empty base URL, so an unconfigured build gets a
+        // placeholder it can parse. Nothing reaches it: a blank token means the app never
+        // makes a call in the first place.
+        val effectiveUrl = backendUrl.ifEmpty { "https://backend.invalid" }
+        buildConfigField("String", "BACKEND_URL", "\"$effectiveUrl/\"")
+        buildConfigField("String", "BACKEND_IMAGE_URL", "\"$effectiveUrl/img/\"")
+        buildConfigField("String", "BACKEND_TOKEN", "\"$backendToken\"")
     }
 
     signingConfigs {

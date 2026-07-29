@@ -22,7 +22,9 @@ data class BackupFile(
 @Serializable
 data class BackupTitle(
     val id: String,
-    @SerialName("tmdb_id") val tmdbId: Int? = null,
+    // The JSON keys keep their original names so backups written by older builds still
+    // import. They say nothing about where the data comes from today.
+    @SerialName("tmdb_id") val catalogId: Int? = null,
     val type: String,
     val name: String,
     val overview: String = "",
@@ -31,7 +33,7 @@ data class BackupTitle(
     val year: String? = null,
     val status: String = WatchStatus.WATCHING.name,
     val rating: Int? = null,
-    @SerialName("tmdb_rating") val tmdbRating: Double? = null,
+    @SerialName("tmdb_rating") val catalogRating: Double? = null,
     @SerialName("runtime_minutes") val runtimeMinutes: Int = 0,
     @SerialName("added_at") val addedAt: Long = 0,
     @SerialName("last_watched_at") val lastWatchedAt: Long? = null,
@@ -57,7 +59,7 @@ data class BackupEpisode(
 
 fun TitleEntity.toBackup(episodes: List<EpisodeEntity>) = BackupTitle(
     id = id,
-    tmdbId = tmdbId,
+    catalogId = catalogId,
     type = mediaType.name,
     name = name,
     overview = overview,
@@ -66,7 +68,7 @@ fun TitleEntity.toBackup(episodes: List<EpisodeEntity>) = BackupTitle(
     year = year,
     status = status.name,
     rating = userRating,
-    tmdbRating = tmdbRating,
+    catalogRating = catalogRating,
     runtimeMinutes = runtimeMinutes,
     addedAt = addedAt,
     lastWatchedAt = lastWatchedAt,
@@ -89,7 +91,7 @@ fun EpisodeEntity.toBackup() = BackupEpisode(
 
 fun BackupTitle.toEntity() = TitleEntity(
     id = id,
-    tmdbId = tmdbId,
+    catalogId = catalogId,
     mediaType = enumOrDefault(type, MediaType.TV),
     name = name,
     overview = overview,
@@ -98,7 +100,7 @@ fun BackupTitle.toEntity() = TitleEntity(
     year = year,
     status = enumOrDefault(status, WatchStatus.WATCHING),
     userRating = rating?.coerceIn(1, 10),
-    tmdbRating = tmdbRating,
+    catalogRating = catalogRating,
     runtimeMinutes = runtimeMinutes,
     addedAt = addedAt.takeIf { it > 0 } ?: System.currentTimeMillis(),
     lastWatchedAt = lastWatchedAt,

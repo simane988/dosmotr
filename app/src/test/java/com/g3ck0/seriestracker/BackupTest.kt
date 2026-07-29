@@ -19,7 +19,7 @@ class BackupTest {
 
     private val title = TitleEntity(
         id = "tv_1399",
-        tmdbId = 1399,
+        catalogId = 1399,
         mediaType = MediaType.TV,
         name = "Игра престолов",
         overview = "описание",
@@ -27,7 +27,7 @@ class BackupTest {
         year = "2011",
         status = WatchStatus.WATCHING,
         userRating = 9,
-        tmdbRating = 8.4,
+        catalogRating = 8.4,
         runtimeMinutes = 60,
         addedAt = 1_700_000_000_000,
         lastWatchedAt = 1_700_000_500_000,

@@ -26,12 +26,12 @@ class SearchContentTest {
     val compose = createComposeRule()
 
     private fun item(
-        tmdbId: Int = 1,
+        catalogId: Int = 1,
         name: String = "Dark",
         type: MediaType = MediaType.TV,
         rating: Double? = 8.3,
     ) = SearchItem(
-        tmdbId = tmdbId,
+        catalogId = catalogId,
         mediaType = type,
         name = name,
         overview = "Описание $name",
@@ -131,10 +131,10 @@ class SearchContentTest {
     @Test
     fun missingApiKeyBlocksTheFieldAndExplains() {
         compose.setThemedContent {
-            SearchContent(state = SearchUiState(hasApiKey = false))
+            SearchContent(state = SearchUiState(hasBackend = false))
         }
 
-        compose.onNodeWithTag(SearchTags.NO_API_KEY).assertIsDisplayed()
+        compose.onNodeWithTag(SearchTags.NO_BACKEND).assertIsDisplayed()
         compose.onNodeWithText("Поиск недоступен").assertIsDisplayed()
         compose.onNodeWithTag(SearchTags.QUERY).assertIsNotEnabled()
     }
