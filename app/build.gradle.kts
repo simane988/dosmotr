@@ -118,6 +118,36 @@ android {
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+
+    lint {
+        // CI runs `lintDebug` and must fail on it — a lint report nobody blocks on is a
+        // report nobody reads. Findings the codebase already has live in lint-baseline.xml,
+        // so only new ones break the build.
+        abortOnError = true
+        warningsAsErrors = true
+        // checkDependencies stays off: analysing the AndroidX/Compose graph as well is the
+        // step that pushes lint past what an 8 GB machine has (see "Memory budget").
+        checkDependencies = false
+        checkReleaseBuilds = false // the release job has no minutes to spare for a second pass
+        baseline = file("lint-baseline.xml")
+        sarifReport = true // uploaded to the Security tab by ci.yml
+        htmlReport = true
+        xmlReport = false
+        // The app is Russian-only by design (see CLAUDE.md), so a missing translation and
+        // an untranslated literal are not defects here.
+        disable += setOf(
+            // The app is Russian-only by design (see CLAUDE.md), so a missing translation
+            // and an untranslated literal are not defects here.
+            "MissingTranslation",
+            "HardcodedText",
+            // "a newer version exists" is a decision, not a defect — bumping AGP/Kotlin/
+            // Compose is its own change with its own test run. CVEs in dependencies are
+            // caught by the vulnerability-scan job instead.
+            "GradleDependency",
+            "AndroidGradlePluginVersion",
+            "NewerVersionAvailable",
+        )
+    }
 }
 
 ksp {

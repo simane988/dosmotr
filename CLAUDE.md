@@ -26,6 +26,19 @@ export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH
 ./gradlew connectedDebugAndroidTest   # 105 tests, needs a device
 ./gradlew connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=com.g3ck0.seriestracker.ui.StatsContentTest
+
+./gradlew :app:lintDebug         # what CI's `static` job fails on
+./gradlew detekt                 # applied at the root, covers app/src entirely
+./gradlew :app:updateLintBaseline  # after fixing (or accepting) findings
+./gradlew detektBaseline
+```
+
+Lint is the second-heaviest task after R8 on this machine. If it gets OOM-killed, cap it
+rather than raising `gradle.properties`:
+
+```bash
+./gradlew --no-daemon -Dorg.gradle.jvmargs="-Xmx1280m -XX:MaxMetaspaceSize=512m" \
+  -Dkotlin.daemon.jvmargs=-Xmx1g :app:lintDebug
 ```
 
 **Wake the screen before instrumented tests** — `adb shell input keyevent KEYCODE_WAKEUP`.
@@ -169,8 +182,9 @@ feature/<name> ──▶ develop ──▶ release/<x.y.z> ──▶ master
 - `develop` is where finished features accumulate.
 - `feature/<name>` branches off `develop` and merges back into it.
 - `release/<x.y.z>` branches off `develop`. **Pushing it is what publishes**, so the
-  branch name is the version: `release/1.2.0` becomes `v1.2.0`. Afterwards merge it into
-  `master` *and* back into `develop`, or the version bump CI made lives only on a branch
+  branch name is the version: `release/1.2.0` becomes `v1.2.0`. Both merge-backs — into
+  `master` *and* into `develop` — are opened as pull requests by the release workflow with
+  auto-merge on; without the second one the version bump CI made lives only on a branch
   nobody reads again.
 
 **Never merge into `develop` or `master` locally.** Every arrow into those two branches
@@ -183,15 +197,77 @@ sync with `git pull`, never with a local merge.
 Nothing about the release is typed by hand. `.github/workflows/release.yml` reads the
 version out of the branch name, bumps `versionCode` in `version.properties`, commits that
 back with `[skip ci]` (without which the push would start the workflow over), builds the
-signed APK and attaches it to a GitHub Release tagged on the release branch.
+signed APK, attaches it to a GitHub Release tagged on the release branch, and finally opens
+the two merge-back PRs (`→ master`, then `→ develop`) with `gh pr merge --auto`.
 `version.properties` is the only place a version lives — `app/build.gradle.kts` reads it,
 so do not put literals back into `defaultConfig`, and do not edit the file on a release
 branch by hand: CI rewrites it there.
 
-`.github/workflows/ci.yml` runs on every branch above and on pull requests into `master`
-and `develop`: JVM tests plus the full instrumented suite on an API 35 emulator. It builds
-*without* backend credentials on purpose — that is what keeps a build with no
+### Workflows
+
+`.github/workflows/ci.yml` is the only place the verification steps are written down, in
+this order — cheapest first, so the emulator never starts for a commit that lint already
+rejected:
+
+```
+decide ─▶ sync-develop ─▶ static (lint + detekt) ─┬─▶ unit ─▶ instrumented (API 35)
+                       └─▶ secrets (gitleaks)  ───┘
+                       └─▶ dependencies (PRs only)
+```
+
+It builds *without* backend credentials on purpose — that is what keeps a build with no
 `backend.url` working, since the search screen's empty state depends on it.
+
+Two mechanisms keep one commit from being tested twice, which is the whole point of the
+`decide` job:
+
+- **A push to `feature/**` is skipped once that branch has an open PR.** The `pull_request`
+  run tests the same commit merged into its base, so both is pure waste. `decide` looks the
+  PR up with `gh pr list --head` and every other job hangs off `needs.decide.outputs.run`.
+  The check is limited to `feature/**`: `master`/`develop` are never the head of a PR, and a
+  release branch must still be verified while its own merge-back PRs are open.
+- **`release/**` is not a trigger in `ci.yml`.** `release.yml`'s `verify` job calls it
+  through `workflow_call` instead, so a release branch runs the suite once, inside the run
+  that builds the APK, rather than in a second pipeline racing it.
+
+`sync-develop` merges `origin/develop` into the branch **before** anything is tested, on
+feature pushes only, so a stale branch is tested as it will be merged. The merge commit
+carries `[skip ci]`: the jobs after it already test the merged tree, and without the marker
+pushing it would start a second identical run. A conflict fails the job with a message —
+CI does not resolve conflicts.
+
+Static analysis is baselined, so both tools fail on findings a commit *introduces*:
+
+- `app/lint-baseline.xml` (regenerate with `./gradlew :app:updateLintBaseline`). The `lint`
+  block in `app/build.gradle.kts` has `warningsAsErrors`, and switches off the checks that
+  are decisions rather than defects: `MissingTranslation`/`HardcodedText` (the app is
+  Russian-only) and `GradleDependency`/`AndroidGradlePluginVersion` (a version bump is its
+  own change; CVEs are the dependency job's business). `checkDependencies` is off — with it
+  on, lint is another step this machine cannot fit in RAM.
+- `config/detekt/baseline.xml` (regenerate with `./gradlew detektBaseline`), configured by
+  `config/detekt/detekt.yml` on top of detekt's defaults. Detekt is applied at the *root*
+  project over `app/src`, so `./gradlew detekt` covers main, test and androidTest at once.
+
+Both emit SARIF that lands in the repository's Security tab.
+
+Security jobs, and why each one is where it is:
+
+- `secrets` runs **gitleaks over the full history** on every branch — the repo is public and
+  `local.properties` holds `backend.token`, and a secret deleted in a later commit is still
+  published by the one that added it. No licence key while the repo is public.
+- `dependencies` runs on pull requests only, because that is the one event
+  `dependency-review-action` supports. Gradle has no lockfile for a scanner to read, so
+  `gradle/actions/dependency-submission` resolves the graph first. The push side of that is
+  `.github/workflows/dependency-graph.yml` (master/develop + weekly), which is what makes
+  Dependabot alerts appear at all.
+- `.github/workflows/codeql.yml` is **not** part of CI: it costs a full compile, so it runs
+  weekly against `develop` (and on `workflow_dispatch`). A scheduled run starts on the
+  default branch, hence the explicit `ref: develop` in its checkout. `build-mode: manual` —
+  autobuild guesses the Gradle invocation and can end up analysing nothing.
+
+Auto-merge on the release PRs needs **"Allow auto-merge" enabled in the repository
+settings**. Without it the workflow logs a warning and leaves both PRs open, which is the
+same outcome minus the convenience.
 
 Releasing needs six repository secrets, and CI fails loudly if any is missing:
 `KEYSTORE_BASE64` (`base64 -w0 keystore/dosmotr-release.jks`), `KEYSTORE_PASSWORD`,

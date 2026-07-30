@@ -1,9 +1,12 @@
 name: Release
 
 # A release branch is what publishes. Cutting release/1.2.0 off develop is the whole
-# trigger: this workflow stamps the version, builds the signed APK and attaches it to a
-# GitHub Release. Merging the branch into master afterwards is a human step — see the
-# "Release flow" section of CLAUDE.md.
+# trigger: this workflow verifies the branch, stamps the version, builds the signed APK,
+# attaches it to a GitHub Release and then opens the two merge-back pull requests.
+#
+# release/** is not a trigger in ci.yml — the `verify` job below calls that workflow
+# instead, so a release branch runs the test suite once, here, rather than in a second
+# pipeline racing this one.
 on:
   push:
     branches: ['release/**']
@@ -23,10 +26,22 @@ env:
     -Dkotlin.daemon.jvmargs=-Xmx2g
 
 jobs:
+  # Tests, lint, detekt and the secret scan, from the one workflow that defines them.
+  verify:
+    name: Verify
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: write
+      pull-requests: read
+      security-events: write
+
   publish:
     name: Build and publish
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -137,3 +152,64 @@ jobs:
       - name: Drop the secrets from the workspace
         if: always()
         run: rm -f local.properties keystore/dosmotr-release.jks
+
+  # The release branch has to land in both long-lived branches: master is what is published,
+  # develop needs the versionCode bump CI just committed or the next release repeats it.
+  # These are pull requests with auto-merge on rather than direct pushes, because a merge
+  # into master or develop stays a reviewable event (see CLAUDE.md) — auto-merge only
+  # decides *when* it lands, once the branch protection checks are green.
+  merge-back:
+    name: Merge into ${{ matrix.base }}
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    strategy:
+      # Sequential: master first, so develop does not get a merge-back of a release that
+      # failed to reach master.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        base: [master, develop]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Open the pull request and enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ matrix.base }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          # checkout only fetched the release branch, so the base has to be asked for.
+          git fetch origin "$BASE"
+          # Nothing to merge means gh pr create would fail rather than no-op — which happens
+          # whenever the base already contains every commit of the release branch.
+          if [ "$(git rev-list --count "origin/$BASE..HEAD")" = 0 ]; then
+            echo "::notice::$BASE already contains $GITHUB_REF_NAME"
+            exit 0
+          fi
+
+          url=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" \
+                  --base "$BASE" --state open --json url --jq '.[0].url // empty')
+          if [ -z "$url" ]; then
+            url=$(gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --head "$GITHUB_REF_NAME" \
+              --base "$BASE" \
+              --title "Release $VERSION → $BASE" \
+              --body "Automated merge-back of \`$GITHUB_REF_NAME\` after v$VERSION was published.
+          Includes the \`versionCode\` bump CI committed to the release branch.")
+          fi
+          echo "::notice::$BASE ← $url"
+
+          # Needs "Allow auto-merge" in the repository settings; without it the PR is still
+          # open and waiting, which is the same outcome minus the convenience.
+          if ! gh pr merge "$url" --auto --merge; then
+            echo "::warning::auto-merge could not be enabled for $url — merge it by hand"
+          fi

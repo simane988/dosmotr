@@ -18,3 +18,5 @@ keystore/
 
 # CodeGraph index (local)
 .codegraph/
+
+todo/

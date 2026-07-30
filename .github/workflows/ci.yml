@@ -1,16 +1,29 @@
 name: CI
 
-# Every branch that carries work, plus the pull requests that merge them. The release
-# workflow is separate because it needs signing secrets and writes to the repository.
+# One pipeline for everything that verifies a commit. Two things keep it from running
+# twice over the same code:
+#
+#   * a push to feature/** is skipped once that branch has an open pull request — the
+#     pull_request run already tests the same commit, merged into its base;
+#   * release/** is not a trigger here at all. release.yml calls this workflow through
+#     `workflow_call` before it publishes, so a release branch gets the full suite in the
+#     same run that builds the APK instead of a second, parallel one.
 on:
   push:
-    branches: [master, develop, 'feature/**', 'release/**']
+    branches: [master, develop, 'feature/**']
   pull_request:
     branches: [master, develop]
+  workflow_call:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # Push and pull_request are kept in separate groups on purpose: sharing one would let a
+  # push cancel the pull request run that is the reason the push was skipped.
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
 
 env:
   # gradle.properties is tuned for an 8 GB laptop; a runner has 16 GB and no OOM killer
@@ -23,11 +36,174 @@ env:
     -Dkotlin.daemon.jvmargs=-Xmx2g
 
 jobs:
+  decide:
+    name: Decide whether to run
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - name: Look for a pull request that already covers this push
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run=true
+          # Only feature branches can be duplicated this way. master/develop are never the
+          # head of a PR, and a release branch must be verified even while its own
+          # merge-back PRs are open.
+          if [ "$GITHUB_EVENT_NAME" = push ] && [[ "$GITHUB_REF_NAME" == feature/* ]]; then
+            pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" \
+                   --state open --json number --jq '.[0].number // empty')
+            if [ -n "$pr" ]; then
+              run=false
+              echo "::notice::skipped — PR #$pr already tests this commit"
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  # Runs on a feature branch only, and before anything is tested: a branch that has drifted
+  # away from develop is tested as it will actually be merged, not as it was written.
+  sync-develop:
+    name: Merge develop into the branch
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feature/')
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Merge origin/develop
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feature/')
+        run: |
+          set -euo pipefail
+          git fetch origin develop
+          if git merge-base --is-ancestor origin/develop HEAD; then
+            echo "::notice::develop is already merged"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # [skip ci] on the merge commit: the jobs below already test the merged tree, so
+          # pushing it must not start a second identical run.
+          if ! git merge --no-ff -m "chore: merge develop into $GITHUB_REF_NAME [skip ci]" origin/develop; then
+            git merge --abort
+            echo "::error::develop does not merge cleanly into $GITHUB_REF_NAME — resolve it locally"
+            exit 1
+          fi
+          git push origin "HEAD:$GITHUB_REF_NAME"
+
+  static:
+    name: Lint and detekt
+    needs: [decide, sync-develop]
+    if: needs.decide.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      # On a push the branch tip is checked out rather than the triggering commit, so the
+      # merge sync-develop just pushed is what gets analysed. Every job below does the same.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref_name || '' }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Both tools are baselined (app/lint-baseline.xml, config/detekt/baseline.xml), so
+      # they fail on findings this commit introduced, not on the ones it inherited.
+      - name: Android Lint
+        run: ./gradlew ${{ env.GRADLE_ARGS }} :app:lintDebug
+
+      - name: detekt
+        run: ./gradlew ${{ env.GRADLE_ARGS }} detekt
+
+      - name: Upload findings to the Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: .
+          category: static-analysis
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: static-analysis-reports
+          path: |
+            app/build/reports/lint-results-debug.html
+            build/reports/detekt
+
+  secrets:
+    name: Secret scan
+    needs: [decide, sync-develop]
+    if: needs.decide.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      # The repo is public and local.properties holds backend.token, so a leaked secret is
+      # a leaked backend. Full history, because a secret removed in a later commit is still
+      # published by the one that added it.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # No licence key needed while the repository is public.
+          GITLEAKS_ENABLE_SUMMARY: true
+
+  dependencies:
+    name: Dependency review
+    needs: [decide, sync-develop]
+    if: needs.decide.outputs.run == 'true' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Gradle has no lockfile a scanner could read, so the graph is resolved here and
+      # handed to GitHub. Only pull requests can be reviewed this way; the push side of the
+      # same data is the submission in dependency-graph.yml, which feeds Dependabot alerts.
+      - uses: gradle/actions/dependency-submission@v4
+        with:
+          dependency-graph: generate-and-submit
+          dependency-resolution-task: ':app:dependencies'
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g
+
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+
   unit:
     name: JVM tests
+    needs: [decide, static, secrets]
+    if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref_name || '' }}
 
       - uses: actions/setup-java@v4
         with:
@@ -52,10 +228,16 @@ jobs:
 
   instrumented:
     name: Instrumented tests (API 35)
+    # Last on purpose: the emulator is the most expensive job in the pipeline, so the
+    # cheap checks get to fail the run before it starts.
+    needs: [decide, unit]
+    if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref_name || '' }}
 
       - uses: actions/setup-java@v4
         with:
