@@ -1,0 +1,94 @@
+name: CI
+
+# Every branch that carries work, plus the pull requests that merge them. The release
+# workflow is separate because it needs signing secrets and writes to the repository.
+on:
+  push:
+    branches: [master, develop, 'feature/**', 'release/**']
+  pull_request:
+    branches: [master, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # gradle.properties is tuned for an 8 GB laptop; a runner has 16 GB and no OOM killer
+  # waiting for it, so the build gets room here instead of everywhere.
+  # The jvmargs value has to stay quoted: unquoted, the shell splits it and Gradle reads
+  # -XX:MaxMetaspaceSize as its own (unknown) option.
+  GRADLE_ARGS: >-
+    --no-daemon --parallel
+    -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
+    -Dkotlin.daemon.jvmargs=-Xmx2g
+
+jobs:
+  unit:
+    name: JVM tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # No backend.url: the app is meant to build without one, and asserting that here
+      # is what stops a change from quietly making the credentials mandatory.
+      - name: Run unit tests
+        run: ./gradlew ${{ env.GRADLE_ARGS }} testDebugUnitTest
+
+      - name: Assemble debug
+        run: ./gradlew ${{ env.GRADLE_ARGS }} assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/testDebugUnitTest
+
+  instrumented:
+    name: Instrumented tests (API 35)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # KVM is what makes an x86_64 emulator usable; without it the run takes hours.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run instrumented tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          # A dozing screen fails Compose assertions about rendered text — the emulator
+          # equivalent of the KEYCODE_WAKEUP the local runs need.
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+            -camera-back none -no-snapshot
+          disable-animations: true
+          script: ./gradlew ${{ env.GRADLE_ARGS }} connectedDebugAndroidTest
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: instrumented-test-report
+          path: app/build/reports/androidTests/connected
