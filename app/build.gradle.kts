@@ -146,6 +146,11 @@ android {
             "GradleDependency",
             "AndroidGradlePluginVersion",
             "NewerVersionAvailable",
+            // Same reasoning, and it only fires on CI: the runner's SDK manager knows about
+            // a newer platform than this machine has installed, so leaving it on means lint
+            // passes locally and fails in the pipeline. Raising targetSdk is a change with
+            // its own behaviour testing, not a lint fix.
+            "OldTargetApi",
         )
     }
 }

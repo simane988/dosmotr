@@ -241,9 +241,12 @@ Static analysis is baselined, so both tools fail on findings a commit *introduce
 - `app/lint-baseline.xml` (regenerate with `./gradlew :app:updateLintBaseline`). The `lint`
   block in `app/build.gradle.kts` has `warningsAsErrors`, and switches off the checks that
   are decisions rather than defects: `MissingTranslation`/`HardcodedText` (the app is
-  Russian-only) and `GradleDependency`/`AndroidGradlePluginVersion` (a version bump is its
-  own change; CVEs are the dependency job's business). `checkDependencies` is off — with it
-  on, lint is another step this machine cannot fit in RAM.
+  Russian-only) and `GradleDependency`/`AndroidGradlePluginVersion`/`OldTargetApi` (a
+  version bump is its own change; CVEs are the dependency job's business). `OldTargetApi`
+  also *only* fires on CI, whose SDK manager knows about a newer platform than this machine
+  has installed — the kind of check that passes locally and fails in the pipeline.
+  `checkDependencies` is off — with it on, lint is another step this machine cannot fit in
+  RAM.
 - `config/detekt/baseline.xml` (regenerate with `./gradlew detektBaseline`), configured by
   `config/detekt/detekt.yml` on top of detekt's defaults. Detekt is applied at the *root*
   project over `app/src`, so `./gradlew detekt` covers main, test and androidTest at once.

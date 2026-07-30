@@ -170,7 +170,9 @@ jobs:
     if: needs.decide.outputs.run == 'true' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # write, not read: submitting the resolved graph is a write to the repository's
+      # dependency data, and without it the action fails with "Resource not accessible".
+      contents: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
