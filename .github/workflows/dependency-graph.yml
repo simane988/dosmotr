@@ -42,3 +42,8 @@ jobs:
           dependency-resolution-task: ':app:dependencies'
         env:
           GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g
+          # Must match ci.yml exactly: the pull request snapshot is diffed against the one
+          # this workflow leaves on the base branch, and two different filters produce a
+          # diff full of packages that were never added.
+          DEPENDENCY_GRAPH_INCLUDE_PROJECTS: '^:app$'
+          DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS: '^releaseRuntimeClasspath$'

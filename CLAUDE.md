@@ -262,7 +262,15 @@ Security jobs, and why each one is where it is:
   `dependency-review-action` supports. Gradle has no lockfile for a scanner to read, so
   `gradle/actions/dependency-submission` resolves the graph first. The push side of that is
   `.github/workflows/dependency-graph.yml` (master/develop + weekly), which is what makes
-  Dependabot alerts appear at all.
+  Dependabot alerts appear at all. **Both submit the same filtered graph** —
+  `DEPENDENCY_GRAPH_INCLUDE_PROJECTS=^:app$` and
+  `DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS=^releaseRuntimeClasspath$` — for two reasons:
+  unfiltered, the graph carries Gradle's own plugin classpath (AGP drags in Bouncy Castle,
+  protobuf, netty), so an advisory against a build tool fails a PR over code no user runs;
+  and the PR snapshot is diffed against whatever the base branch last submitted, so the two
+  filters have to stay identical or the diff fills with packages nobody added.
+  All of it needs **Dependency graph enabled** in the repository settings — without it the
+  submission fails with "The Dependency graph is disabled for this repository".
 - `.github/workflows/codeql.yml` is **not** part of CI: it costs a full compile, so it runs
   weekly against `develop` (and on `workflow_dispatch`). A scheduled run starts on the
   default branch, hence the explicit `ref: develop` in its checkout. `build-mode: manual` —

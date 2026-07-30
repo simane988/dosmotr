@@ -191,6 +191,12 @@ jobs:
           dependency-resolution-task: ':app:dependencies'
         env:
           GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g
+          # Only what ships inside the APK. Unfiltered, the graph also carries Gradle's own
+          # plugin classpath (AGP pulls in Bouncy Castle, protobuf, netty…), and an advisory
+          # against a build tool would fail a pull request over something no user ever runs.
+          # Keep this identical to dependency-graph.yml or the two snapshots cannot be diffed.
+          DEPENDENCY_GRAPH_INCLUDE_PROJECTS: '^:app$'
+          DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS: '^releaseRuntimeClasspath$'
 
       - uses: actions/dependency-review-action@v4
         with:
