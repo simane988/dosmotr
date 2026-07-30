@@ -2,6 +2,7 @@ package com.g3ck0.seriestracker.ui.library
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,12 +24,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -48,6 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -488,10 +491,23 @@ private fun TitleCard(
                 ) {
                     OverflowMenu(titleId = title.id, onStatus = onStatus, onDelete = onDelete)
                     if (title.isMovie) {
+                        // A watched and an unwatched movie must not share one look: the
+                        // pill is filled with a solid check once watched, and an outlined
+                        // check on a plain outline while it is not.
                         ActionPill(
-                            icon = Icons.Filled.Check,
+                            icon = if (title.movieWatched) {
+                                Icons.Filled.CheckCircle
+                            } else {
+                                Icons.Outlined.CheckCircle
+                            },
                             label = null,
                             onClick = { onToggleMovie(!title.movieWatched) },
+                            filled = title.movieWatched,
+                            contentDescription = if (title.movieWatched) {
+                                "Снять отметку о просмотре"
+                            } else {
+                                "Отметить просмотренным"
+                            },
                             modifier = Modifier.testTag(LibraryTags.markNext(title.id)),
                         )
                     } else if (item.remaining > 0) {
@@ -514,12 +530,19 @@ private fun ActionPill(
     label: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    filled: Boolean = true,
+    contentDescription: String? = null,
 ) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        color = if (filled) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        contentColor = if (filled) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        border = if (filled) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         modifier = modifier.height(40.dp),
     ) {
         Row(
@@ -527,7 +550,11 @@ private fun ActionPill(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Icon(icon, contentDescription = label ?: "Отметить", modifier = Modifier.size(20.dp))
+            Icon(
+                icon,
+                contentDescription = contentDescription ?: label ?: "Отметить",
+                modifier = Modifier.size(20.dp),
+            )
             if (label != null) {
                 Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
