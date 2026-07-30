@@ -1,0 +1,62 @@
+# Layered on top of detekt's defaults (buildUponDefaultConfig = true in build.gradle.kts),
+# so this file only records where a Compose codebase disagrees with those defaults.
+# Everything not listed here keeps detekt's own setting.
+
+complexity:
+  LongParameterList:
+    # A stateless XxxContent takes state plus one callback per interaction — that is the
+    # UI convention in CLAUDE.md, not a design smell.
+    active: true
+    functionThreshold: 12
+    constructorThreshold: 12
+    ignoreDefaultParameters: true
+    ignoreAnnotated: ['Composable']
+  LongMethod:
+    active: true
+    threshold: 120
+    ignoreAnnotated: ['Composable', 'Test']
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 30
+    thresholdInClasses: 30
+    thresholdInObjects: 30
+    ignoreAnnotatedFunctions: ['Composable', 'Test']
+
+naming:
+  MatchingDeclarationName:
+    # Tag objects (LibraryTags, SearchTags, …) live next to the screen they address, which
+    # is the documented UI convention — one file per top-level declaration is not wanted.
+    active: false
+  FunctionNaming:
+    # @Composable functions are PascalCase by convention.
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    # Private top-level Compose constants (Dp/Color) read better as PascalCase.
+    constantPattern: '[A-Za-z][_A-Za-z0-9]*'
+
+style:
+  MagicNumber:
+    # Layout numbers (dp, weights, alpha) are the point of a Compose file.
+    ignoreAnnotated: ['Composable', 'Test']
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+  MaxLineLength:
+    maxLineLength: 120
+    excludeCommentStatements: true
+  UnusedPrivateMember:
+    # @Preview composables are called by the tooling, not by code.
+    ignoreAnnotated: ['Composable', 'Preview']
+  ForbiddenComment:
+    # TODO/FIXME are notes to self, not build failures.
+    active: false
+  ReturnCount:
+    active: true
+    max: 4
+    excludeGuardClauses: true
+
+exceptions:
+  TooGenericExceptionCaught:
+    # Network and JSON import paths catch broadly on purpose and surface the message.
+    active: false
+  SwallowedException:
+    active: false

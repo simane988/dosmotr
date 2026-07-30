@@ -1,0 +1,49 @@
+name: Dependency graph
+
+# Gradle has no lockfile, so nothing can scan the dependencies until they are resolved.
+# This resolves them and submits the graph to GitHub, which is what makes Dependabot
+# alerts appear for Retrofit/OkHttp/Compose and friends. Pull requests get the same data
+# through the `dependencies` job in ci.yml; this is the push side of it.
+on:
+  push:
+    branches: [master, develop]
+    paths:
+      - 'gradle/libs.versions.toml'
+      - '**/build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/wrapper/**'
+      - '.github/workflows/dependency-graph.yml'
+  schedule:
+    # Weekly, so an advisory published after the last dependency change still lands.
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: dependency-graph-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  submit:
+    name: Submit the dependency graph
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/dependency-submission@v4
+        with:
+          dependency-resolution-task: ':app:dependencies'
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g
+          # Must match ci.yml exactly: the pull request snapshot is diffed against the one
+          # this workflow leaves on the base branch, and two different filters produce a
+          # diff full of packages that were never added.
+          DEPENDENCY_GRAPH_INCLUDE_PROJECTS: '^:app$'
+          DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS: '^releaseRuntimeClasspath$'
