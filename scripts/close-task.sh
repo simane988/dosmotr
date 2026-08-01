@@ -6,6 +6,11 @@
 #   scripts/close-task.sh feature-11
 #   scripts/close-task.sh bug-3 --title "fix: keep the card in place after +1"
 #   scripts/close-task.sh feature-11 --no-wait   # stop once auto-merge is armed
+#   scripts/close-task.sh feature-11 --pr-only   # open the PR, merge nothing
+#
+# --pr-only is the half that runs before review: it pushes and opens the PR and
+# stops there. Running the script again later, plain, picks that same PR up and
+# finishes the job.
 #
 # todo/ is gitignored, so the bookkeeping is local-only: nothing here commits or
 # pushes the task files, and nothing ever pushes to develop or master directly.
@@ -16,12 +21,14 @@ cd "$(git rev-parse --show-toplevel)"
 TASK=""
 TITLE=""
 WAIT=1
+PR_ONLY=0
 MERGE_METHOD="--merge"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --title) TITLE="$2"; shift 2 ;;
         --no-wait) WAIT=0; shift ;;
+        --pr-only) PR_ONLY=1; shift ;;
         --squash) MERGE_METHOD="--squash"; shift ;;
         -*) echo "unknown option: $1" >&2; exit 2 ;;
         *) TASK="$1"; shift ;;
@@ -66,6 +73,12 @@ else
     echo "close-task: reusing $PR_URL"
 fi
 
+if [ "$PR_ONLY" -eq 1 ]; then
+    echo "close-task: --pr-only; nothing merged, todo files untouched"
+    echo "$PR_URL"
+    exit 0
+fi
+
 # --- hand the merge to GitHub ------------------------------------------------
 if ! gh pr merge "$PR_URL" --auto $MERGE_METHOD --delete-branch; then
     die "could not arm auto-merge (is 'Allow auto-merge' on in repo settings?); PR left open: $PR_URL"
@@ -78,10 +91,18 @@ if [ "$WAIT" -eq 0 ]; then
 fi
 
 echo "close-task: waiting for checks and merge…"
+# Bounded: a required check that hangs would otherwise wedge this script — and
+# any grind.sh loop above it — silently and forever. A failed poll is not fatal
+# either; rate limits and flaky networks are normal over an hour of waiting.
+POLLS=0
 while :; do
-    STATE="$(gh pr view "$PR_URL" --json state --jq .state)"
+    STATE="$(gh pr view "$PR_URL" --json state --jq .state 2>/dev/null || echo UNKNOWN)"
     [ "$STATE" = "MERGED" ] && break
     [ "$STATE" = "CLOSED" ] && die "PR was closed without merging: $PR_URL"
+    POLLS=$((POLLS + 1))
+    if [ "$POLLS" -ge 120 ]; then
+        die "still not merged after an hour (last state: $STATE); PR left open: $PR_URL"
+    fi
     sleep 30
 done
 echo "close-task: merged"

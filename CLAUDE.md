@@ -135,6 +135,21 @@ name, and the `/v1` paths above.
 release build is the heaviest step — the `profileable` build type disables it on purpose,
 since what makes debug frame times meaningless is `debuggable`, not the missing shrinking.
 
+The budget is the whole machine's, not Gradle's. A k3s server runs here permanently and
+holds ~0.6 GB before a single container starts; Firefox and VS Code together take more
+than Gradle does. Two rules that follow, both learned the hard way:
+
+- **Never capture unbounded output in a shell.** `x="$(producer | filter)"` buffers
+  everything the producer emits in the shell's own heap — one runaway producer reached
+  3.4 GB and the OOM killer took the terminal, its Claude Code session and two k3s pods
+  with it. Bound it (`| head -c N`) and end the substitution with `true` so the SIGPIPE
+  that bounding causes is not fatal under `set -o pipefail`. Probe commands that can loop
+  belong under `ulimit -v`.
+- **The emulator and a build do not both fit next to a browser.** `scripts/emulator.sh`
+  wants ~2.5 GB and Gradle ~2.8 GB; that is what `/swap2.img` exists for, and it still
+  peaks around 5.6 GB of swap. Stopping k3s (`sudo systemctl stop k3s`) buys back roughly
+  a gigabyte when a run has to fit.
+
 ## Architecture
 
 `ui` (Compose) → ViewModel → `TrackerRepository` → Room DAO + Retrofit `CatalogApi`,
@@ -251,7 +266,7 @@ scripts/close-task.sh feature-11                       # title = last commit sub
 scripts/close-task.sh bug-3 --title "fix: …" --no-wait
 ```
 
-It refuses to start off a `feature/**` branch or with a dirty tree, then:
+It refuses to run anywhere but a `feature/**` branch, or with a dirty tree, then:
 
 1. pushes the branch and opens the PR into `develop` (reuses an already-open one);
 2. arms `gh pr merge --auto --merge --delete-branch` and waits for the merge;
@@ -268,14 +283,17 @@ script later picks the same PR back up and finishes.
 
 ### Working the whole backlog
 
-`scripts/grind.sh` runs the backlog down to nothing: pick the most valuable open task,
-do it in a full interactive Claude Code session, close it with `close-task.sh`, repeat.
+`scripts/grind.sh` runs the backlog down to nothing. Per task: pick it, implement it in a
+full interactive Claude Code session, open a PR, have a second session review that PR
+until it passes, then merge and close it with `close-task.sh`. Repeat.
 
 ```bash
 scripts/grind.sh                 # asks before each task
 scripts/grind.sh --yes           # unattended
 scripts/grind.sh --task bug-4    # start here, then carry on picking
 scripts/grind.sh --once          # one task, then stop
+scripts/grind.sh --no-review     # straight to merge, no review rounds
+scripts/grind.sh --rounds 5      # more review rounds before it gives up
 ```
 
 **Run it from a terminal yourself, not from inside a session** — each task is a real
@@ -286,15 +304,28 @@ type into it. There is no `-p`, no background agent; the script is only the loop
   `todo/README.md`, answering with a single id. It reruns before every task so the choice
   accounts for what the last one changed. An unusable answer falls back to backlog order,
   bugs first.
+- **Review is a separate session, deliberately.** The author session ends its turn at
+  `close-task.sh <task> --pr-only` — PR opened, nothing merged. A fresh `claude -p`
+  reviewer then reads `git diff origin/develop...HEAD` against the task spec and
+  CLAUDE.md's invariants, with read-only tools (it reports, it never fixes), and ends
+  with `VERDICT: APPROVE` or `VERDICT: REQUEST_CHANGES`. On request-changes the findings
+  are resumed **into the author's existing conversation**, so it fixes with the whole
+  context of having written the code; the next round is a new reviewer again, and gets
+  the previous round's report to check each point was addressed. Merge is armed only
+  after an approve. Three rounds by default, then it asks (`--rounds N` to raise it);
+  under `--yes` it gives up and leaves the PR open rather than merging unreviewed work.
+  A reviewer reply with no `VERDICT:` line counts as approve — the alternative is a loop
+  that never ends on a malformed answer. Reports are kept as
+  `todo/.grind/<task>.review.<n>.md`.
 - **Nothing is lost at a usage limit.** Each task gets a fixed `--session-id`, stored in
   `todo/.grind/<task>.session`. When a session ends without the task reaching
   `todo/done/` — limit, Ctrl-C, anything — the script offers resume / wait an hour and
   resume / skip / quit, and resume continues *that* conversation with its whole context.
   `--yes` waits 15 minutes and resumes on its own. Skip and quit both print the
   `claude --resume <id>` needed to come back later.
-- **Done means moved.** The loop tests for `todo/done/<task>.md`, i.e. it trusts nothing
-  but `close-task.sh` having actually run. A session that "finished" without closing the
-  task is treated as interrupted.
+- **Progress is measured by artefacts, not by claims.** Phase one ends when `gh pr list`
+  shows an open PR for the branch, phase three when `todo/done/<task>.md` exists. A
+  session that says it finished without either having happened is treated as interrupted.
 - Sessions run with `--permission-mode bypassPermissions` — no permission prompts at
   all, which is the point of an unattended loop, and worth knowing since those sessions
   push branches, open PRs and arm auto-merge by themselves. `--mode auto` still stops on
