@@ -37,11 +37,24 @@ class LibraryViewModel @Inject constructor(
     private val filters = MutableStateFlow(LibraryFilters())
     private val message = MutableStateFlow<String?>(null)
 
+    /**
+     * The row order the screen is currently showing, by title id.
+     *
+     * The DAO sorts by `lastWatchedAt DESC`, so marking an episode moves the card to the
+     * top of its status group — out from under the finger that is tapping "+1 серия",
+     * with the next tap landing on whatever slid into its place. The order is therefore
+     * frozen while the screen is open: it is taken from the DAO once, and later emissions
+     * are re-ordered onto it. [refreshOrder] and a filter change are what unfreeze it.
+     */
+    private var pinnedOrder: List<String> = emptyList()
+
+    private val orderEpoch = MutableStateFlow(0)
+
     val state: StateFlow<LibraryUiState> =
-        combine(repository.observeLibrary(), filters, message) { library, f, msg ->
+        combine(repository.observeLibrary(), filters, message, orderEpoch) { library, f, msg, _ ->
             LibraryUiState(
                 loading = false,
-                items = library.filter { it.matches(f) },
+                items = pin(library.filter { it.matches(f) }),
                 filters = f,
                 totalCount = library.size,
                 message = msg,
@@ -52,15 +65,28 @@ class LibraryViewModel @Inject constructor(
             initialValue = LibraryUiState(),
         )
 
+    /**
+     * Drops the frozen order so the next emission is sorted by the DAO again. Called when
+     * the screen is entered — a fresh look at the library is expected to be sorted, a card
+     * moving while it is being tapped is not.
+     */
+    fun refreshOrder() {
+        pinnedOrder = emptyList()
+        orderEpoch.value++
+    }
+
     fun setStatusFilter(status: WatchStatus?) {
+        pinnedOrder = emptyList()
         filters.value = filters.value.copy(status = status)
     }
 
     fun setMediaFilter(type: MediaType?) {
+        pinnedOrder = emptyList()
         filters.value = filters.value.copy(mediaType = type)
     }
 
     fun setQuery(query: String) {
+        pinnedOrder = emptyList()
         filters.value = filters.value.copy(query = query)
     }
 
@@ -88,6 +114,35 @@ class LibraryViewModel @Inject constructor(
 
     fun consumeMessage() {
         message.value = null
+    }
+
+    /**
+     * Re-orders [items] onto [pinnedOrder] and remembers the result as the new order.
+     *
+     * Titles the frozen order does not know about — added, imported, or brought into the
+     * filter since it was taken — keep the position the DAO gave them relative to the
+     * titles around them, so a new row still appears where it belongs instead of at the
+     * end. Deleted ones simply drop out.
+     */
+    private fun pin(items: List<TitleWithProgress>): List<TitleWithProgress> {
+        val rank = pinnedOrder.withIndex().associate { (index, id) -> id to index.toDouble() }
+        var anchor = -1.0
+        var unranked = 0
+        val ordered = items
+            .map { item ->
+                val pinned = rank[item.title.id]
+                if (pinned != null) {
+                    anchor = pinned
+                    unranked = 0
+                } else {
+                    unranked++
+                }
+                item to (pinned ?: anchor + unranked / (items.size + 1.0))
+            }
+            .sortedBy { (_, position) -> position }
+            .map { (item, _) -> item }
+        pinnedOrder = ordered.map { it.title.id }
+        return ordered
     }
 }
 
