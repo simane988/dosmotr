@@ -285,8 +285,8 @@ script later picks the same PR back up and finishes.
 ### Working the whole backlog
 
 `scripts/grind.sh` runs the backlog down to nothing. Per task: pick it, implement it in a
-full interactive Claude Code session, open a PR, have a second session review that PR
-until it passes, then merge and close it with `close-task.sh`. Repeat.
+full Claude Code session, open a PR, have a second session review that PR until it passes,
+then merge and close it with `close-task.sh`. Repeat.
 
 ```bash
 scripts/grind.sh                 # asks before each task
@@ -298,8 +298,21 @@ scripts/grind.sh --rounds 5      # more review rounds before it gives up
 ```
 
 **Run it from a terminal yourself, not from inside a session** — each task is a real
-`claude` process in the foreground of that terminal, so the work is visible and you can
-type into it. There is no `-p`, no background agent; the script is only the loop.
+`claude` process in the foreground of that terminal, so the work is visible as it happens.
+No background agent; the script is only the loop.
+
+**Every session is `claude -p`, not an interactive one, and that is not negotiable.** An
+interactive session does not exit when the work is done — it returns to its prompt and
+waits, so the script above it hangs until someone presses Ctrl-C, and the review and merge
+phases never run. Print mode ends on its own. To keep it watchable the sessions stream
+`--output-format stream-json --include-partial-messages --verbose` through
+`scripts/claude-stream.py`, which renders thinking, tool calls and their results the way an
+interactive session shows them. So: watch, do not type. `--text-out` on that filter is also
+how the reviewer's reply is captured for the `VERDICT:` line.
+
+Since nobody can answer, the task prompt tells the session to decide open questions itself
+and state the assumption — a question there just ends the turn with the task unfinished,
+which the phase-1 check then reports as "opened no PR".
 
 - **Picking** is one tool-less `claude -p` call per iteration, fed the open ids and
   `todo/README.md`, answering with a single id. It reruns before every task so the choice

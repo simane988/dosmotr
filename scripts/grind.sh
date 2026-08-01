@@ -8,8 +8,11 @@
 #   scripts/grind.sh --no-review  # skip the review rounds, merge straight away
 #   scripts/grind.sh --rounds 5   # allow more review rounds before asking
 #
-# Each task gets its own interactive session in THIS terminal — you watch it and
-# can type into it. The loop is the script; the work is Claude.
+# Each task gets its own session in THIS terminal, printed live — thinking, tool
+# calls and results, as they happen. The sessions are non-interactive on purpose:
+# an interactive one never returns control to the loop, it waits at its prompt
+# after the work is done. So watch, do not type; Ctrl-C stops the run and the
+# session id is kept, so `--resume` picks the conversation back up.
 #
 # Per task: the author session implements it and opens a PR without merging, a
 # fresh reviewer session reads the diff, and its findings are resumed back into
@@ -60,11 +63,33 @@ open_tasks() {
     ls todo/bugs/*.md todo/features/*.md 2>/dev/null | xargs -r -n1 basename | sed 's/\.md$//'
 }
 
+# Every session runs non-interactively. An interactive `claude` does not end when
+# the work is done — it sits at its prompt waiting for input, so the loop above it
+# never gets control back. Print mode ends by itself, and streaming JSON through
+# scripts/claude-stream.py keeps what an interactive session shows: thinking, tool
+# calls, results. The pipeline is deliberately non-fatal — a session that dies (a
+# usage limit above all) is handled by the phase checks, not by killing the loop.
+claude_run() {
+    local text_out=""
+    if [ "$1" = "--text-out" ]; then text_out="$2"; shift 2; fi
+    set +e
+    claude -p --output-format stream-json --include-partial-messages --verbose \
+        ${MODEL:+--model "$MODEL"} --permission-mode "$MODE" "$@" \
+        | python3 scripts/claude-stream.py ${text_out:+--text-out "$text_out"}
+    set -e
+    return 0
+}
+
 # Resume the author's conversation, optionally seeding it with a message.
 author_resume() {
     local sid="$1"
     shift
-    claude --resume "$sid" ${MODEL:+--model "$MODEL"} --permission-mode "$MODE" "$@" || true
+    if [ $# -eq 0 ]; then
+        # Nothing to say: a bare resume in print mode would have no prompt at
+        # all, so ask it to carry on from where it stopped.
+        set -- "Continue where you left off and finish the task."
+    fi
+    claude_run --resume "$sid" "$@"
 }
 
 # The PR the author opened for whatever branch it is sitting on.
@@ -151,7 +176,9 @@ comes back to you in this same conversation; you fix what it raises and push,
 and the merge happens only once review passes. Do not merge anything yourself
 and do not run close-task.sh without --pr-only.
 
-Stop and ask me only if a decision is genuinely mine to make.
+Nobody is at the keyboard: this session is non-interactive, so a question ends
+the turn with the task unfinished. Decide it yourself, state the assumption you
+made, and carry on.
 EOF
 }
 
@@ -162,8 +189,7 @@ EOF
 # fixes. Output is printed live and captured; the last VERDICT line decides.
 review_round() {
     local task="$1" round="$2" out="$3"
-    claude -p ${MODEL:+--model "$MODEL"} \
-        --tools "Read,Grep,Glob,Bash" --permission-mode "$MODE" \
+    claude_run --text-out "$out" --tools "Read,Grep,Glob,Bash" \
         "You are reviewing a pull request in this repository, review round $round.
 
 The branch is \`$(git rev-parse --abbrev-ref HEAD)\`; the diff under review is
@@ -185,7 +211,7 @@ what to do. No praise, no summary of the diff.
 
 End your reply with exactly one line:
 VERDICT: APPROVE        — nothing worth blocking on
-VERDICT: REQUEST_CHANGES — findings above must be fixed" 2>&1 | tee "$out"
+VERDICT: REQUEST_CHANGES — findings above must be fixed"
 }
 
 verdict_of() {
@@ -213,8 +239,7 @@ run_task() {
         echo "$sid" > "$sid_file"
         prompt="$(build_prompt "$task" "$path")"
         echo "grind: starting session $sid for $task"
-        claude --session-id "$sid" -n "grind:$task" \
-            ${MODEL:+--model "$MODEL"} --permission-mode "$MODE" "$prompt" || true
+        claude_run --session-id "$sid" "$prompt"
     fi
 
     # Phase 1 — a PR has to exist before there is anything to review.
