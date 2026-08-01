@@ -268,7 +268,8 @@ scripts/close-task.sh bug-3 --title "fix: …" --no-wait
 
 It refuses to run anywhere but a `feature/**` branch, or with a dirty tree, then:
 
-1. pushes the branch and opens the PR into `develop` (reuses an already-open one);
+1. pushes the branch and opens the PR into `develop` (reuses an already-open one), then
+   waits until the PR head has check runs, pushing an empty commit if it has none;
 2. arms `gh pr merge --auto --merge --delete-branch` and waits for the merge;
 3. appends `**PR:** <url>` to `todo/{bugs,features}/<task>.md`;
 4. moves that file **and every `<task>.*` / `<task>-*` asset** into `todo/done/`;
@@ -335,8 +336,40 @@ type into it. There is no `-p`, no background agent; the script is only the loop
 
 Auto-merge needs **"Allow auto-merge"** in the repository settings (the same setting the
 release PRs depend on); without it the script stops and leaves the PR open rather than
-merging it another way. Merging still waits on the same required checks — `--auto` only
-queues the merge, it never bypasses CI.
+merging it another way.
+
+**`--auto` waits for required checks and nothing else.** `develop` is protected with all
+seven CI checks required:
+
+```
+Decide whether to run · Merge develop into the branch · Lint and detekt · Secret scan
+Dependency review · JVM tests · Instrumented tests (API 35)
+```
+
+Those are the `github-actions` check names; `Android Lint` and `detekt` also appear on
+commits but come from code scanning (`github-advanced-security`) and are deliberately not
+required. `strict` is off — a branch does not have to be rebuilt on top of the newest
+`develop` before merging, because `sync-develop` already merges `develop` into it. Admins
+are not exempt (`enforce_admins` is false, so the setting can still be lifted by hand when
+something is genuinely stuck).
+
+Before this was turned on the branch was unprotected, which meant auto-merge landed a PR
+the moment it opened — that is how PR #10 merged while lint was still running. If a merge
+ever happens instantly again, that is the first thing to check.
+
+Two consequences worth knowing, both of which cost a confused half hour once already:
+
+- **`--delete-branch` removes the branch the instant the merge lands**, and any run still
+  in flight for it fails in `actions/checkout` with `fetch ... failed with exit code 1`.
+  That failure is bookkeeping, not a broken build — the run on `develop` is the verdict.
+- **A required check that never starts blocks the merge forever**, unlike one that fails.
+  `sync-develop` pushes its merge commit with the skip-CI marker, and GitHub starts no
+  workflow for such a commit — so a PR whose head is that commit would wait out
+  `close-task.sh`'s hour and stay open. That is why the script checks for check runs on
+  the PR head and pushes an empty commit when there are none.
+  **The marker counts anywhere in a commit message, not just in the subject.** A commit
+  that merely *mentions* it in prose is skipped too — that is how the first attempt at
+  this very change ran no pipeline at all. Write it as "skip-CI marker" in messages.
 
 Nothing about the release is typed by hand. `.github/workflows/release.yml` reads the
 version out of the branch name, bumps `versionCode` in `version.properties`, commits that

@@ -73,6 +73,36 @@ else
     echo "close-task: reusing $PR_URL"
 fi
 
+# --- make sure the PR head is actually being tested --------------------------
+# `develop` requires every CI check, and a head commit with no checks blocks the
+# merge forever rather than failing it. That is a real possibility here: the
+# sync-develop job pushes its merge commit with [skip ci], and GitHub starts no
+# workflow at all for such a commit. If the PR ends up sitting on one, an empty
+# commit gives the pipeline something it will run on.
+REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+git fetch -q origin "$BRANCH"
+git merge --ff-only "origin/$BRANCH" -q 2>/dev/null || true
+HEAD_SHA="$(git rev-parse "origin/$BRANCH")"
+
+CHECKS=0
+for _ in $(seq 1 12); do
+    CHECKS="$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs" --jq '.check_runs | length' 2>/dev/null || echo 0)"
+    [ "$CHECKS" -gt 0 ] && break
+    sleep 10
+done
+
+if [ "$CHECKS" -eq 0 ]; then
+    echo "close-task: no checks on ${HEAD_SHA:0:7} after 2 min — re-triggering CI"
+    # Keep the skip marker out of THIS message, in any form: GitHub honours it
+    # anywhere in a commit message, so spelling it here would skip the very run
+    # this commit exists to start.
+    git commit -q --allow-empty -m "ci: re-run checks
+
+The previous head carried the skip-CI marker, which starts no workflow, and
+develop requires every check before a merge."
+    git push -q
+fi
+
 if [ "$PR_ONLY" -eq 1 ]; then
     echo "close-task: --pr-only; nothing merged, todo files untouched"
     echo "$PR_URL"
