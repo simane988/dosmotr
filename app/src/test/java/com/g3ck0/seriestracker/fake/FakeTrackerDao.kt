@@ -33,10 +33,16 @@ class FakeTrackerDao : TrackerDao {
 
     private fun progressOf(db: Db, title: TitleEntity): TitleWithProgress {
         val own = db.episodes.filter { it.titleId == title.id }
+        // Same row PROGRESS_SELECT's subqueries pick: first unwatched in airing order.
+        val next = own.filter { !it.watched }
+            .minWithOrNull(compareBy({ it.seasonNumber }, { it.episodeNumber }))
         return TitleWithProgress(
             title = title,
             episodeCount = own.size,
             watchedCount = own.count { it.watched },
+            nextSeason = next?.seasonNumber,
+            nextEpisode = next?.episodeNumber,
+            nextName = next?.name,
         )
     }
 

@@ -67,4 +67,14 @@ fun progressOf(
     title: TitleEntity,
     episodeCount: Int = 0,
     watchedCount: Int = 0,
-) = TitleWithProgress(title, episodeCount, watchedCount)
+    nextSeason: Int? = null,
+    nextEpisode: Int? = null,
+    nextName: String? = null,
+) = TitleWithProgress(
+    title,
+    episodeCount,
+    watchedCount,
+    nextSeason,
+    nextEpisode,
+    nextName,
+)
