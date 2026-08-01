@@ -23,9 +23,12 @@ export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH
 ./gradlew testDebugUnitTest      # 82 JVM tests, no device needed
 ./gradlew testDebugUnitTest --tests "com.g3ck0.seriestracker.LabelsTest"
 
-./gradlew connectedDebugAndroidTest   # 105 tests, needs a device
+./gradlew connectedDebugAndroidTest   # 107 tests, needs a device
 ./gradlew connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=com.g3ck0.seriestracker.ui.StatsContentTest
+
+scripts/emulator.sh gui          # local AVD in a window — the fast path, see below
+scripts/emulator.sh test         # start it, then run the suite pinned to it
 
 ./gradlew :app:lintDebug         # what CI's `static` job fails on
 ./gradlew detekt                 # applied at the root, covers app/src entirely
@@ -48,6 +51,51 @@ same tests pass once it is awake. This is reproducible, not flaky hardware.
 `connectedDebugAndroidTest` is finalized by `installDebug` (see the bottom of
 `app/build.gradle.kts`): AGP uninstalls both APKs when it finishes, which used to leave
 the phone with no build on it. The finalizer runs even when tests fail.
+
+### Local emulator
+
+`scripts/emulator.sh` runs the suite without the phone on USB. The AVD it expects,
+`dosmotr_ci_35`, mirrors the `instrumented` job: API 35, `google_apis`, x86_64,
+`pixel_6`. Create it with:
+
+```bash
+sdkmanager --install emulator "system-images;android-35;google_apis;x86_64"
+avdmanager create avd -n dosmotr_ci_35 -k "system-images;android-35;google_apis;x86_64" -d pixel_6
+```
+
+then raise `hw.ramSize` to 2048M, `vm.heapSize` to 512M and the data partition to 4096M
+in `~/.android/avd/dosmotr_ci_35.avd/config.ini`. Also set `hw.keyboard=yes`, or the
+soft keyboard covers the views Compose tests assert on. KVM needs nothing on this
+machine — an ACL on `/dev/kvm` already grants the user `rw`; the udev rule in `ci.yml`
+is for GitHub runners.
+
+`gui` is the mode to reach for, and not only because a window is nice: it renders on the
+real GPU, which is *faster* than the headless mode, not slower.
+
+|                 | `start` (headless)     | `gui`              |
+| --------------- | ---------------------- | ------------------ |
+| renderer        | `swiftshader_indirect` | `-gpu host`        |
+| suite runtime   | 116s                   | 50s                |
+| emulator RSS    | 3390M                  | 2342M              |
+| animations      | 0                      | 1x                 |
+
+Software rendering competes for the same cores the tests run on and costs an extra
+gigabyte of buffers. Headless is still what CI uses, so it is the mode to reproduce in
+when a test fails only in the pipeline.
+
+Two things the script exists to get right:
+
+- **`test` pins `ANDROID_SERIAL`.** `connectedDebugAndroidTest` installs on *every*
+  connected device, so a phone plugged in beside the emulator runs the whole suite twice.
+- **It applies what CI's `disable-animations: true` applies** — all three animation
+  scales — plus the `KEYCODE_WAKEUP` above, on every start.
+
+`-no-window` is fixed at launch, so switching between the two modes means `stop` first;
+the script refuses rather than silently handing back the wrong one.
+
+The emulator wants ~2.5G next to Gradle's ~2.8G, which does not fit in 8G. This machine
+carries a second swap file (`/swap2.img`, 8G) for exactly that; a run peaks around 5.6G
+of swap. Without it the OOM killer takes the build.
 
 ## Secrets and signing
 
