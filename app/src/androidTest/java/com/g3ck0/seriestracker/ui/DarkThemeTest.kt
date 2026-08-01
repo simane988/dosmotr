@@ -53,6 +53,9 @@ class DarkThemeTest {
         ),
         episodeCount = 8,
         watchedCount = 2,
+        nextSeason = 1,
+        nextEpisode = 3,
+        nextName = "Друг или враг",
     )
 
     @Test
@@ -66,7 +69,8 @@ class DarkThemeTest {
         }
 
         compose.onNodeWithText("Уэнздей").assertIsDisplayed()
-        compose.onNodeWithText("2 / 8 · осталось 6").assertIsDisplayed()
+        compose.onNodeWithText("2 / 8 серий").assertIsDisplayed()
+        compose.onNodeWithText("S01E03 · Друг или враг").assertIsDisplayed()
         compose.onNodeWithTag(LibraryTags.card("tv_1")).performClick()
 
         assertEquals("tv_1", opened)

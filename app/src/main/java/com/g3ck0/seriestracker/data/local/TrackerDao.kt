@@ -9,10 +9,20 @@ import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
+// The three "next" subqueries all resolve the same row — the first unwatched episode in
+// airing order — over the (titleId, seasonNumber) index, which is why repeating them is
+// cheaper than it looks. A window function would fold them into one pass but needs
+// SQLite 3.25 (API 28), and minSdk here is 26.
 private const val PROGRESS_SELECT = """
     SELECT t.*,
         (SELECT COUNT(*) FROM episodes e WHERE e.titleId = t.id) AS episodeCount,
-        (SELECT COUNT(*) FROM episodes e WHERE e.titleId = t.id AND e.watched = 1) AS watchedCount
+        (SELECT COUNT(*) FROM episodes e WHERE e.titleId = t.id AND e.watched = 1) AS watchedCount,
+        (SELECT e.seasonNumber FROM episodes e WHERE e.titleId = t.id AND e.watched = 0
+         ORDER BY e.seasonNumber, e.episodeNumber LIMIT 1) AS nextSeason,
+        (SELECT e.episodeNumber FROM episodes e WHERE e.titleId = t.id AND e.watched = 0
+         ORDER BY e.seasonNumber, e.episodeNumber LIMIT 1) AS nextEpisode,
+        (SELECT e.name FROM episodes e WHERE e.titleId = t.id AND e.watched = 0
+         ORDER BY e.seasonNumber, e.episodeNumber LIMIT 1) AS nextName
     FROM titles t
 """
 

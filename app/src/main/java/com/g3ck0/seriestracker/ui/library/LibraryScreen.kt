@@ -77,6 +77,8 @@ import com.g3ck0.seriestracker.ui.common.PillSearchField
 import com.g3ck0.seriestracker.ui.common.Poster
 import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
 import com.g3ck0.seriestracker.ui.common.label
+import com.g3ck0.seriestracker.ui.common.nextLabel
+import com.g3ck0.seriestracker.ui.common.plural
 
 object LibraryTags {
     const val LIST = "library:list"
@@ -89,6 +91,7 @@ object LibraryTags {
     const val FAB = "library:fab"
     fun card(titleId: String) = "library:card:$titleId"
     fun markNext(titleId: String) = "library:markNext:$titleId"
+    fun nextEpisode(titleId: String) = "library:next:$titleId"
     fun overflow(titleId: String) = "library:overflow:$titleId"
 
     /** Menu entries repeat the filter-chip labels, so they need their own handles. */
@@ -467,14 +470,26 @@ private fun TitleCard(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 ) {
-                                    // "серий" is dropped here on purpose: at this width
-                                    // the full phrase gets clipped. The detail screen
-                                    // still spells it out in full.
-                                    append(" / ${item.episodeCount} · осталось ${item.remaining}")
+                                    val unit = plural(
+                                        item.episodeCount,
+                                        "серия",
+                                        "серии",
+                                        "серий",
+                                    )
+                                    append(" / ${item.episodeCount} $unit")
                                 }
                             },
                             lineHeight = 24.sp,
                             maxLines = 1,
+                        )
+                        // What "+ 1 серия" will mark, so the button is not pressed blind.
+                        Text(
+                            text = item.nextLabel ?: "Всё просмотрено",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag(LibraryTags.nextEpisode(title.id)),
                         )
                         Spacer(Modifier.height(6.dp))
                         LinearProgressIndicator(

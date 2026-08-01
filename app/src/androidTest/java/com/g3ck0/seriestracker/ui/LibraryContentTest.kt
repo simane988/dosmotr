@@ -1,6 +1,7 @@
 package com.g3ck0.seriestracker.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.g3ck0.seriestracker.ui.about.AboutTags
 import androidx.compose.ui.test.onNodeWithTag
@@ -32,6 +33,9 @@ class LibraryContentTest {
         status: WatchStatus = WatchStatus.WATCHING,
         episodes: Int = 10,
         watched: Int = 3,
+        nextSeason: Int? = 1,
+        nextEpisode: Int? = 4,
+        nextName: String? = "Двойники",
     ) = TitleWithProgress(
         title = TitleEntity(
             id = id,
@@ -43,6 +47,9 @@ class LibraryContentTest {
         ),
         episodeCount = episodes,
         watchedCount = watched,
+        nextSeason = nextSeason,
+        nextEpisode = nextEpisode,
+        nextName = nextName,
     )
 
     private fun movie(id: String = "movie_1", name: String = "Fight Club", watched: Boolean = false) =
@@ -61,14 +68,43 @@ class LibraryContentTest {
         )
 
     @Test
-    fun seriesCardShowsProgressAndRemaining() {
+    fun seriesCardShowsProgressAndNextEpisode() {
         compose.setThemedContent {
             LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
         }
 
         compose.onNodeWithText("Dark").assertIsDisplayed()
         compose.onNodeWithText("Сериал · 2017 · Смотрю").assertIsDisplayed()
-        compose.onNodeWithText("3 / 10 · осталось 7").assertIsDisplayed()
+        compose.onNodeWithText("3 / 10 серий").assertIsDisplayed()
+        // The card Surface is clickable, so it merges its children: the line has its own
+        // node only in the unmerged tree.
+        compose.onNodeWithTag(LibraryTags.nextEpisode("tv_1"), useUnmergedTree = true)
+            .assertTextEquals("S01E04 · Двойники")
+    }
+
+    /** Nothing left to watch: the card says so rather than showing a stale episode. */
+    @Test
+    fun watchedThroughSeriesCardSaysEverythingWatched() {
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(
+                    loading = false,
+                    items = listOf(
+                        series(
+                            watched = 10,
+                            nextSeason = null,
+                            nextEpisode = null,
+                            nextName = null,
+                        )
+                    ),
+                )
+            )
+        }
+
+        // The card Surface is clickable, so it merges its children: the line has its own
+        // node only in the unmerged tree.
+        compose.onNodeWithTag(LibraryTags.nextEpisode("tv_1"), useUnmergedTree = true)
+            .assertTextEquals("Всё просмотрено")
     }
 
     @Test
