@@ -198,4 +198,83 @@ class LibraryViewModelTest {
 
         assertTrue(dao.getTitle("movie_1")!!.movieWatched)
     }
+
+    /** Three watching titles the DAO orders A, B, C — none of them watched yet. */
+    private fun seedWatchingRows() {
+        listOf("tv_1" to "A", "tv_2" to "B", "tv_3" to "C").forEachIndexed { index, (id, name) ->
+            dao.seedTitle(
+                tvTitle(
+                    id = id,
+                    name = name,
+                    addedAt = 3_000L - index * 1_000L,
+                    status = WatchStatus.WATCHING,
+                )
+            )
+            dao.seedEpisodes(episodesFor(id, mapOf(1 to 4)))
+        }
+    }
+
+    @Test
+    fun `marking an episode leaves the row where it is`() = runTest {
+        seedWatchingRows()
+        val vm = viewModel()
+
+        vm.state.test {
+            assertEquals(listOf("A", "B", "C"), awaitUntil { !it.loading }.items.map { it.title.name })
+            vm.markNextWatched("tv_3")
+            // The DAO now sorts C first (lastWatchedAt DESC); the frozen order must not.
+            val after = awaitUntil { it.message != null }
+            assertEquals(listOf("A", "B", "C"), after.items.map { it.title.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `refreshing the order applies the DAO sort again`() = runTest {
+        seedWatchingRows()
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            vm.markNextWatched("tv_3")
+            awaitUntil { it.message != null }
+            vm.refreshOrder()
+            val resorted = awaitUntil { it.items.first().title.name == "C" }
+            assertEquals(listOf("C", "A", "B"), resorted.items.map { it.title.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a filter change applies the DAO sort again`() = runTest {
+        seedWatchingRows()
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            vm.markNextWatched("tv_3")
+            awaitUntil { it.message != null }
+            vm.setStatusFilter(WatchStatus.WATCHING)
+            val filtered = awaitUntil { it.filters.status == WatchStatus.WATCHING }
+            assertEquals(listOf("C", "A", "B"), filtered.items.map { it.title.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a title added while the order is frozen keeps its place in it`() = runTest {
+        seedWatchingRows()
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            // The DAO sorts this one between A and B; it must land there, not at the end.
+            dao.seedTitle(
+                tvTitle(id = "tv_4", name = "New", addedAt = 2_500, status = WatchStatus.WATCHING)
+            )
+            val grown = awaitUntil { it.items.size == 4 }
+            assertEquals(listOf("A", "New", "B", "C"), grown.items.map { it.title.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }

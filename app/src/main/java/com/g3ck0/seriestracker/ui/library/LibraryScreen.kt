@@ -117,6 +117,10 @@ fun LibraryScreen(
     var askImportMode by remember { mutableStateOf(false) }
     var importMode by remember { mutableStateOf(ImportMode.MERGE) }
 
+    // The ViewModel outlives this composable, so entering the screen is what re-sorts the
+    // library; while it is open the order stays put (see LibraryViewModel.pinnedOrder).
+    LaunchedEffect(Unit) { viewModel.refreshOrder() }
+
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri -> uri?.let(backupViewModel::export) }
