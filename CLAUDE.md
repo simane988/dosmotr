@@ -239,8 +239,73 @@ feature/<name> ──▶ develop ──▶ release/<x.y.z> ──▶ master
 is a pull request on GitHub — the merge is the reviewable event, and a local merge pushed
 straight to `origin/develop` lands the change with no review and auto-closes an open PR.
 So "get this feature into develop" means: finish it on `feature/<name>`, push that branch,
-`gh pr create --base develop`, and stop — merging the PR is not yours to do. Afterwards
-sync with `git pull`, never with a local merge.
+open the PR, and hand the merge to GitHub's auto-merge — never run the merge locally.
+Afterwards sync with `git pull`, never with a local merge.
+
+### Closing a todo task
+
+`scripts/close-task.sh <task-id>` is the whole flow; do not do the steps by hand:
+
+```bash
+scripts/close-task.sh feature-11                       # title = last commit subject
+scripts/close-task.sh bug-3 --title "fix: …" --no-wait
+```
+
+It refuses to start off a `feature/**` branch or with a dirty tree, then:
+
+1. pushes the branch and opens the PR into `develop` (reuses an already-open one);
+2. arms `gh pr merge --auto --merge --delete-branch` and waits for the merge;
+3. appends `**PR:** <url>` to `todo/{bugs,features}/<task>.md`;
+4. moves that file **and every `<task>.*` / `<task>-*` asset** into `todo/done/`;
+5. rewrites the matching `todo/README.md` links to `done/…` and marks the row ✅;
+6. checks out `develop`, pulls, and deletes the local feature branch.
+
+**`todo/` is gitignored**, so steps 3–5 are local-only — no commit, nothing pushed, and
+in particular nothing that would require a direct push to `develop`. That is also why the
+task file is edited *after* the merge rather than inside the PR: the PR would not carry it
+anyway. `--no-wait` stops after step 2 and leaves the todo files alone; re-running the
+script later picks the same PR back up and finishes.
+
+### Working the whole backlog
+
+`scripts/grind.sh` runs the backlog down to nothing: pick the most valuable open task,
+do it in a full interactive Claude Code session, close it with `close-task.sh`, repeat.
+
+```bash
+scripts/grind.sh                 # asks before each task
+scripts/grind.sh --yes           # unattended
+scripts/grind.sh --task bug-4    # start here, then carry on picking
+scripts/grind.sh --once          # one task, then stop
+```
+
+**Run it from a terminal yourself, not from inside a session** — each task is a real
+`claude` process in the foreground of that terminal, so the work is visible and you can
+type into it. There is no `-p`, no background agent; the script is only the loop.
+
+- **Picking** is one tool-less `claude -p` call per iteration, fed the open ids and
+  `todo/README.md`, answering with a single id. It reruns before every task so the choice
+  accounts for what the last one changed. An unusable answer falls back to backlog order,
+  bugs first.
+- **Nothing is lost at a usage limit.** Each task gets a fixed `--session-id`, stored in
+  `todo/.grind/<task>.session`. When a session ends without the task reaching
+  `todo/done/` — limit, Ctrl-C, anything — the script offers resume / wait an hour and
+  resume / skip / quit, and resume continues *that* conversation with its whole context.
+  `--yes` waits 15 minutes and resumes on its own. Skip and quit both print the
+  `claude --resume <id>` needed to come back later.
+- **Done means moved.** The loop tests for `todo/done/<task>.md`, i.e. it trusts nothing
+  but `close-task.sh` having actually run. A session that "finished" without closing the
+  task is treated as interrupted.
+- Sessions run with `--permission-mode bypassPermissions` — no permission prompts at
+  all, which is the point of an unattended loop, and worth knowing since those sessions
+  push branches, open PRs and arm auto-merge by themselves. `--mode auto` still stops on
+  the risky calls; `--mode acceptEdits` prompts for everything but file edits. The
+  task prompt spells out the CLAUDE.md rules: branch off develop, update the fakes with
+  the DAO, run unit tests + lint + detekt, never merge locally.
+
+Auto-merge needs **"Allow auto-merge"** in the repository settings (the same setting the
+release PRs depend on); without it the script stops and leaves the PR open rather than
+merging it another way. Merging still waits on the same required checks — `--auto` only
+queues the merge, it never bypasses CI.
 
 Nothing about the release is typed by hand. `.github/workflows/release.yml` reads the
 version out of the branch name, bumps `versionCode` in `version.properties`, commits that
