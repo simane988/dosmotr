@@ -246,7 +246,23 @@ class TrackerRepository @Inject constructor(
 
     suspend fun setNotes(titleId: String, notes: String) = dao.setNotes(titleId, notes)
 
-    suspend fun delete(titleId: String) = dao.deleteTitle(titleId)
+    /**
+     * Deletes the title and returns what was removed, so a caller can offer an undo.
+     * The foreign key cascade takes the episodes with the title, hence the snapshot:
+     * nothing else in the database remembers which ones were watched.
+     */
+    suspend fun delete(titleId: String): DeletedTitle? {
+        val title = dao.getTitle(titleId) ?: return null
+        val episodes = dao.getEpisodes(titleId)
+        dao.deleteTitle(titleId)
+        return DeletedTitle(title, episodes)
+    }
+
+    /** Puts a [delete]d title back, watched flags included. */
+    suspend fun restore(deleted: DeletedTitle) {
+        dao.upsertTitle(deleted.title)
+        dao.upsertEpisodes(deleted.episodes)
+    }
 
     /**
      * Keeps status honest without taking it away from the user: finishing the last
@@ -277,6 +293,9 @@ class TrackerRepository @Inject constructor(
         const val DEFAULT_EPISODE_MINUTES = 45
     }
 }
+
+/** A title as it was just before [TrackerRepository.delete] removed it. */
+data class DeletedTitle(val title: TitleEntity, val episodes: List<EpisodeEntity>)
 
 private fun SearchResultDto.toSearchItem(): SearchItem? {
     val type = when (mediaType) {

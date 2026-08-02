@@ -13,7 +13,9 @@ import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.TitleEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
+import com.g3ck0.seriestracker.ui.common.SnackbarTags
 import com.g3ck0.seriestracker.ui.library.LibraryFilters
+import com.g3ck0.seriestracker.ui.library.LibraryMessage
 import com.g3ck0.seriestracker.ui.library.LibraryTags
 import com.g3ck0.seriestracker.ui.library.LibraryContent
 import com.g3ck0.seriestracker.ui.library.LibraryUiState
@@ -316,13 +318,28 @@ class LibraryContentTest {
         assertEquals("tv_1", deleted)
     }
 
+    /**
+     * The menu can open upwards over the neighbouring cards, so the title it belongs to
+     * has to be named inside it — otherwise "Удалить" is aimed at nothing visible.
+     */
+    @Test
+    fun overflowMenuNamesItsTitle() {
+        compose.setThemedContent {
+            LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
+        }
+
+        compose.onNodeWithTag(LibraryTags.overflow("tv_1")).performClick()
+
+        compose.onNodeWithTag(LibraryTags.MENU_TITLE).assertTextEquals("Dark")
+    }
+
     @Test
     fun messageIsShownAndAcknowledgedOnce() {
         var shown = 0
         compose.setThemedContent {
             LibraryContent(
                 state = LibraryUiState(loading = false, items = listOf(series())),
-                message = "Отмечено: S01E04",
+                message = LibraryMessage("Отмечено: S01E04"),
                 onMessageShown = { shown++ },
             )
         }
@@ -330,6 +347,23 @@ class LibraryContentTest {
         compose.onNodeWithText("Отмечено: S01E04").assertIsDisplayed()
         // The message is acknowledged only once the snackbar finishes showing.
         compose.waitUntil(timeoutMillis = 10_000) { shown == 1 }
+    }
+
+    @Test
+    fun deleteMessageOffersUndo() {
+        var undone = 0
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(loading = false, items = emptyList(), totalCount = 1),
+                message = LibraryMessage("Тайтл «Dark» удалён", action = "Отменить"),
+                onMessageAction = { undone++ },
+            )
+        }
+
+        compose.onNodeWithText("Тайтл «Dark» удалён").assertIsDisplayed()
+        compose.onNodeWithTag(SnackbarTags.ACTION).performClick()
+
+        compose.waitUntil(timeoutMillis = 10_000) { undone == 1 }
     }
 
     @Test

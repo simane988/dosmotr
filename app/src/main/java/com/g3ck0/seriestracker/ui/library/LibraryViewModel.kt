@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
+import com.g3ck0.seriestracker.data.repository.DeletedTitle
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,12 +22,18 @@ data class LibraryFilters(
     val query: String = "",
 )
 
+/**
+ * A snackbar line. [action] is the label of its button — set only when there is
+ * something to undo, since the button is what makes the deletion recoverable.
+ */
+data class LibraryMessage(val text: String, val action: String? = null)
+
 data class LibraryUiState(
     val loading: Boolean = true,
     val items: List<TitleWithProgress> = emptyList(),
     val filters: LibraryFilters = LibraryFilters(),
     val totalCount: Int = 0,
-    val message: String? = null,
+    val message: LibraryMessage? = null,
 )
 
 @HiltViewModel
@@ -35,7 +42,17 @@ class LibraryViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val filters = MutableStateFlow(LibraryFilters())
-    private val message = MutableStateFlow<String?>(null)
+    private val message = MutableStateFlow<LibraryMessage?>(null)
+
+    /**
+     * The last deleted title, kept until the snackbar offering the undo is gone.
+     *
+     * Deleting from a list is one tap with no dialog in front of it, and the row it hits
+     * moves while the list re-sorts — so the recovery has to live somewhere. The database
+     * cannot provide it: the foreign key cascade takes every watched episode with the
+     * title, and nothing but a JSON backup remembers them afterwards.
+     */
+    private var deleted: DeletedTitle? = null
 
     /**
      * The row order the screen is currently showing, by title id.
@@ -92,11 +109,13 @@ class LibraryViewModel @Inject constructor(
 
     fun markNextWatched(titleId: String) = viewModelScope.launch {
         val episode = repository.markNextWatched(titleId)
-        message.value = if (episode == null) {
-            "Все серии уже отмечены"
-        } else {
-            "Отмечено: S%02dE%02d".format(episode.seasonNumber, episode.episodeNumber)
-        }
+        message.value = LibraryMessage(
+            if (episode == null) {
+                "Все серии уже отмечены"
+            } else {
+                "Отмечено: S%02dE%02d".format(episode.seasonNumber, episode.episodeNumber)
+            }
+        )
     }
 
     fun toggleMovieWatched(titleId: String, watched: Boolean) = viewModelScope.launch {
@@ -108,8 +127,24 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun delete(titleId: String) = viewModelScope.launch {
-        repository.delete(titleId)
-        message.value = "Удалено"
+        val removed = repository.delete(titleId) ?: return@launch
+        deleted = removed
+        // "Тайтл «…»", not just the name: the name's grammatical gender is unknown, and
+        // it is often English, so anything agreeing with it directly would read wrong.
+        message.value = LibraryMessage("Тайтл «${removed.title.name}» удалён", action = "Отменить")
+    }
+
+    /**
+     * Puts the last deleted title back. The pending snapshot is taken before the restore
+     * is launched, so a [consumeMessage] arriving in between cannot drop it mid-flight.
+     */
+    fun undoDelete() {
+        val removed = deleted ?: return
+        deleted = null
+        viewModelScope.launch {
+            repository.restore(removed)
+            message.value = LibraryMessage("Тайтл «${removed.title.name}» восстановлен")
+        }
     }
 
     fun consumeMessage() {

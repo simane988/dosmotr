@@ -20,9 +20,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -96,6 +98,10 @@ fun ExtendedActionButton(
     }
 }
 
+object SnackbarTags {
+    const val ACTION = "snackbar:action"
+}
+
 /**
  * Snackbar sits above the floating navigation pill rather than at the screen edge,
  * otherwise the bar covers it. It also clears the keyboard: AppRoot already consumes
@@ -111,10 +117,22 @@ fun SnackbarOverlay(hostState: SnackbarHostState, modifier: Modifier = Modifier)
             .imePadding()
             .padding(start = 16.dp, end = 16.dp, bottom = 104.dp),
     ) { data ->
+        val actionLabel = data.visuals.actionLabel
         Snackbar(
             shape = RoundedCornerShape(4.dp),
             containerColor = MaterialTheme.colorScheme.inverseSurface,
             contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            actionContentColor = MaterialTheme.colorScheme.inversePrimary,
+            action = actionLabel?.let {
+                {
+                    TextButton(
+                        onClick = { data.performAction() },
+                        modifier = Modifier.testTag(SnackbarTags.ACTION),
+                    ) {
+                        Text(it, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            },
         ) {
             Text(data.visuals.message, style = MaterialTheme.typography.bodyMedium)
         }

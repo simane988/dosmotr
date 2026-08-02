@@ -304,6 +304,30 @@ class TrackerRepositoryTest {
     }
 
     @Test
+    fun `delete hands back what it removed and restore puts it back`() = runTest {
+        val repo = repository()
+        dao.seedTitle(tvTitle(id = "tv_1", name = "Dark"))
+        dao.seedEpisodes(episodesFor("tv_1", mapOf(1 to 3)))
+        repo.markNextWatched("tv_1")
+
+        val removed = repo.delete("tv_1")!!
+        assertEquals("Dark", removed.title.name)
+        assertEquals(3, removed.episodes.size)
+        assertEquals(1, removed.episodes.count { it.watched })
+
+        repo.restore(removed)
+
+        assertNotNull(dao.getTitle("tv_1"))
+        assertEquals(3, dao.getEpisodes("tv_1").size)
+        assertEquals(1, dao.getEpisodes("tv_1").count { it.watched })
+    }
+
+    @Test
+    fun `deleting an unknown title reports nothing to undo`() = runTest {
+        assertNull(repository().delete("tv_missing"))
+    }
+
+    @Test
     fun `rating and notes round trip`() = runTest {
         val repo = repository()
         dao.seedTitle(tvTitle(id = "tv_1"))
