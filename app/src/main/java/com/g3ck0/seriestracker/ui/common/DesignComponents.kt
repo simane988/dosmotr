@@ -4,11 +4,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -105,7 +110,8 @@ object SnackbarTags {
 /**
  * Snackbar sits above the floating navigation pill rather than at the screen edge,
  * otherwise the bar covers it. The clearance is the measured one, system bars included,
- * so a second navigationBarsPadding() here would count that inset twice. It also clears
+ * so a second bottom inset here would count it twice — but the horizontal one still has
+ * to be applied, since a 3-button navigation bar sits on the side in landscape. It also clears
  * the keyboard: AppRoot already consumes the IME inset, but a screen shown outside it
  * (tests, previews) would otherwise draw the snackbar underneath an open keyboard.
  */
@@ -115,6 +121,7 @@ fun SnackbarOverlay(hostState: SnackbarHostState, modifier: Modifier = Modifier)
         hostState = hostState,
         modifier = modifier
             .imePadding()
+            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
             .padding(start = 16.dp, end = 16.dp, bottom = FloatingNavClearance),
     ) { data ->
         val actionLabel = data.visuals.actionLabel
