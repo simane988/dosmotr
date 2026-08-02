@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -48,10 +50,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
@@ -75,6 +79,7 @@ import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
 import com.g3ck0.seriestracker.ui.common.episodeCode
 import com.g3ck0.seriestracker.ui.common.formatMinutes
 import com.g3ck0.seriestracker.ui.common.label
+import kotlinx.coroutines.launch
 
 object DetailTags {
     const val LIST = "detail:list"
@@ -649,12 +654,27 @@ private fun OutlinedPill(label: String, onClick: () -> Unit, modifier: Modifier 
 }
 
 /** Notes are collapsed behind a button until the user wants them. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
     var open by remember(initial) { mutableStateOf(false) }
     var text by remember(initial) { mutableStateOf(initial) }
 
-    Column(Modifier.padding(horizontal = 16.dp)) {
+    // The block sits at the very bottom of the overview, so with the keyboard open it
+    // is below the shrunken viewport: focusing the field, and later the save row
+    // appearing under it, both have to scroll the list to it.
+    val bringIntoView = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    val edited = open && text != initial
+    LaunchedEffect(edited) {
+        if (edited) bringIntoView.bringIntoView()
+    }
+
+    Column(
+        Modifier
+            .padding(horizontal = 16.dp)
+            .bringIntoViewRequester(bringIntoView)
+    ) {
         if (!open) {
             Surface(
                 onClick = { open = true },
@@ -710,6 +730,9 @@ private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
                             .fillMaxWidth()
                             .padding(top = 4.dp)
                             .height(60.dp)
+                            .onFocusChanged { focus ->
+                                if (focus.isFocused) scope.launch { bringIntoView.bringIntoView() }
+                            }
                             .testTag(DetailTags.NOTES),
                     )
                 }
