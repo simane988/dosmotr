@@ -69,13 +69,24 @@ open_tasks() {
 # scripts/claude-stream.py keeps what an interactive session shows: thinking, tool
 # calls, results. The pipeline is deliberately non-fatal — a session that dies (a
 # usage limit above all) is handled by the phase checks, not by killing the loop.
+#   claude_run [--text-out FILE] <prompt> [claude flags...]
+#
+# The prompt goes in on stdin, never as a trailing argument: `--tools` takes a
+# variadic list, so anything after it is read as one more tool name — including
+# the prompt, which then leaves claude exiting with "Input must be provided
+# either through stdin or as a prompt argument when using --print".
 claude_run() {
     local text_out=""
     if [ "$1" = "--text-out" ]; then text_out="$2"; shift 2; fi
+    local prompt="$1"; shift
+    local model_flag=() render=(python3 scripts/claude-stream.py)
+    [ -n "$MODEL" ] && model_flag=(--model "$MODEL")
+    [ -n "$text_out" ] && render+=(--text-out "$text_out")
     set +e
-    claude -p --output-format stream-json --include-partial-messages --verbose \
-        ${MODEL:+--model "$MODEL"} --permission-mode "$MODE" "$@" \
-        | python3 scripts/claude-stream.py ${text_out:+--text-out "$text_out"}
+    printf '%s' "$prompt" \
+        | claude -p --output-format stream-json --include-partial-messages --verbose \
+            "${model_flag[@]}" --permission-mode "$MODE" "$@" \
+        | "${render[@]}"
     set -e
     return 0
 }
@@ -89,7 +100,7 @@ author_resume() {
         # all, so ask it to carry on from where it stopped.
         set -- "Continue where you left off and finish the task."
     fi
-    claude_run --resume "$sid" "$@"
+    claude_run "$1" --resume "$sid"
 }
 
 # The PR the author opened for whatever branch it is sitting on.
@@ -168,8 +179,15 @@ Follow CLAUDE.md. In particular:
    and \`./gradlew detekt\`. Run \`scripts/emulator.sh test\` when the change is UI
    or DAO. Fix what fails.
 5. Commit in English, conventional-commits style.
-6. Open the PR with \`scripts/close-task.sh $task --pr-only\`. That pushes the
-   branch and opens the PR into develop and stops there — it does NOT merge.
+6. Write the PR description **in Russian** into \`$STATE_DIR/$task.pr.md\` — prose,
+   not a changelog: what the problem was, what you changed and why exactly that
+   way, what you deliberately left alone, and anything you had to decide
+   yourself. Mention how it was verified (which tests, which screen). Code,
+   identifiers and commands stay as they are.
+7. Open the PR with
+   \`scripts/close-task.sh $task --pr-only --body-file $STATE_DIR/$task.pr.md\`.
+   That pushes the branch and opens the PR into develop and stops there — it
+   does NOT merge.
 
 Then end your turn. A separate reviewer session reads the PR and its feedback
 comes back to you in this same conversation; you fix what it raises and push,
@@ -189,7 +207,7 @@ EOF
 # fixes. Output is printed live and captured; the last VERDICT line decides.
 review_round() {
     local task="$1" round="$2" out="$3"
-    claude_run --text-out "$out" --tools "Read,Grep,Glob,Bash" \
+    claude_run --text-out "$out" \
         "You are reviewing a pull request in this repository, review round $round.
 
 The branch is \`$(git rev-parse --abbrev-ref HEAD)\`; the diff under review is
@@ -211,7 +229,8 @@ what to do. No praise, no summary of the diff.
 
 End your reply with exactly one line:
 VERDICT: APPROVE        — nothing worth blocking on
-VERDICT: REQUEST_CHANGES — findings above must be fixed"
+VERDICT: REQUEST_CHANGES — findings above must be fixed" \
+        --tools "Read,Grep,Glob,Bash"
 }
 
 verdict_of() {
@@ -239,7 +258,7 @@ run_task() {
         echo "$sid" > "$sid_file"
         prompt="$(build_prompt "$task" "$path")"
         echo "grind: starting session $sid for $task"
-        claude_run --session-id "$sid" "$prompt"
+        claude_run "$prompt" --session-id "$sid"
     fi
 
     # Phase 1 — a PR has to exist before there is anything to review.
@@ -282,6 +301,14 @@ run_task() {
             echo
             echo "grind: review round $round on $(pr_url)"
             review_round "$task" "$round" "$review"
+
+            # An empty report means the reviewer never ran (a usage limit, a bad
+            # invocation) — that is a failure, not an approval. Merging on it
+            # would land unreviewed work, so the PR is left open instead.
+            if [ ! -s "$review" ]; then
+                echo "grind: the reviewer produced nothing — PR left open, not merging"
+                return 1
+            fi
             verdict="$(verdict_of "$review")"
 
             case "$verdict" in
@@ -317,7 +344,11 @@ $(cat "$review")
 
 Fix what is a real defect. If a finding is wrong, say why instead of changing
 code to satisfy it. Commit and push to the same branch when done — do not merge,
-another review round follows."
+another review round follows. If the fixes changed what the PR actually does,
+update $STATE_DIR/$task.pr.md (Russian, same as before) and push it onto the PR
+with: gh pr edit --body-file $STATE_DIR/$task.pr.md
+(keep the trailing \`Closes\` line that is already on the PR — that file does not
+carry it, so append it before you push the body)."
             round=$((round + 1))
         done
     fi

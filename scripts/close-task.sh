@@ -7,6 +7,7 @@
 #   scripts/close-task.sh bug-3 --title "fix: keep the card in place after +1"
 #   scripts/close-task.sh feature-11 --no-wait   # stop once auto-merge is armed
 #   scripts/close-task.sh feature-11 --pr-only   # open the PR, merge nothing
+#   scripts/close-task.sh feature-11 --body-file todo/.grind/feature-11.pr.md
 #
 # --pr-only is the half that runs before review: it pushes and opens the PR and
 # stops there. Running the script again later, plain, picks that same PR up and
@@ -20,6 +21,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 TASK=""
 TITLE=""
+BODY_FILE=""
 WAIT=1
 PR_ONLY=0
 MERGE_METHOD="--merge"
@@ -27,6 +29,7 @@ MERGE_METHOD="--merge"
 while [ $# -gt 0 ]; do
     case "$1" in
         --title) TITLE="$2"; shift 2 ;;
+        --body-file) BODY_FILE="$2"; shift 2 ;;
         --no-wait) WAIT=0; shift ;;
         --pr-only) PR_ONLY=1; shift ;;
         --squash) MERGE_METHOD="--squash"; shift ;;
@@ -37,7 +40,7 @@ done
 
 die() { echo "close-task: $*" >&2; exit 1; }
 
-[ -n "$TASK" ] || die "usage: scripts/close-task.sh <task-id> [--title <pr title>] [--no-wait] [--squash]"
+[ -n "$TASK" ] || die "usage: scripts/close-task.sh <task-id> [--title <pr title>] [--body-file <path>] [--no-wait] [--pr-only] [--squash]"
 
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 case "$BRANCH" in
@@ -66,8 +69,21 @@ PR_URL="$(gh pr list --head "$BRANCH" --base develop --state open \
 
 if [ -z "$PR_URL" ]; then
     [ -n "$TITLE" ] || TITLE="$(git log -1 --pretty=%s)"
+    # The description is prose in Russian — what was done and why — because that
+    # is what gets read on the PR page. --body-file is how the working session
+    # hands its own text over; without one, only the link to the spec is left.
+    BODY="Closes \`$TASK_MD\`."
+    if [ -n "$BODY_FILE" ]; then
+        if [ -s "$BODY_FILE" ]; then
+            BODY="$(cat "$BODY_FILE")
+
+Closes \`$TASK_MD\`."
+        else
+            echo "close-task: $BODY_FILE is missing or empty — opening the PR without a description" >&2
+        fi
+    fi
     PR_URL="$(gh pr create --base develop --head "$BRANCH" \
-        --title "$TITLE" --body "Closes \`$TASK_MD\`.")"
+        --title "$TITLE" --body "$BODY")"
     echo "close-task: opened $PR_URL"
 else
     echo "close-task: reusing $PR_URL"
