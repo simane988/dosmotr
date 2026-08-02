@@ -120,7 +120,8 @@ class SearchViewModelTest {
 
         vm.state.test {
             val failed = awaitUntil { it.error != null }
-            assertEquals("no route to host", failed.error)
+            assertEquals("Нет соединения с интернетом", failed.error?.title)
+            assertEquals("Проверь сеть и попробуй ещё раз", failed.error?.body)
             assertFalse(failed.loading)
             cancelAndIgnoreRemainingEvents()
         }

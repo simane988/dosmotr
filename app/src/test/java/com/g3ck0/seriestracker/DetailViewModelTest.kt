@@ -224,7 +224,10 @@ class DetailViewModelTest {
             // Both land in the same emission — waiting for them separately would
             // block forever once the flow has settled.
             val failed = awaitUntil { it.message != null && !it.refreshing }
-            assertEquals("offline", failed.message)
+            assertEquals(
+                "Нет соединения с интернетом. Проверь сеть и попробуй ещё раз",
+                failed.message,
+            )
             assertFalse(failed.refreshing)
             cancelAndIgnoreRemainingEvents()
         }

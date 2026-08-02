@@ -119,6 +119,12 @@ android {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 
+    testOptions {
+        // toUserError() logs the original exception through android.util.Log, which is an
+        // unimplemented stub on the JVM and throws unless the stubs return defaults.
+        unitTests.isReturnDefaultValues = true
+    }
+
     lint {
         // CI runs `lintDebug` and must fail on it — a lint report nobody blocks on is a
         // report nobody reads. Findings the codebase already has live in lint-baseline.xml,
