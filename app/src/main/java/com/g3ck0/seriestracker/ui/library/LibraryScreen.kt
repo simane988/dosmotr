@@ -3,10 +3,11 @@ package com.g3ck0.seriestracker.ui.library
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +26,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -109,7 +109,7 @@ object LibraryTags {
     /** Header naming the card the menu belongs to — the menu can cover that card. */
     const val MENU_TITLE = "library:menu:title"
 
-    // Chips live in a horizontal scroller; tags let tests scroll to them by identity.
+    // Chips wrap onto as many rows as they need; tags address them by identity.
     const val CHIP_ALL = "library:chip:all"
     fun statusChip(status: WatchStatus) = "library:chip:${status.name}"
     fun mediaChip(type: MediaType) = "library:chip:${type.name}"
@@ -377,6 +377,8 @@ private fun LargeHeader(
     }
 }
 
+// FlowRow is still ExperimentalLayoutApi on Compose 1.7; only its stable arguments are used.
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FilterRow(
     selectedStatus: WatchStatus?,
@@ -384,12 +386,14 @@ private fun FilterRow(
     onStatus: (WatchStatus?) -> Unit,
     onType: (MediaType?) -> Unit,
 ) {
-    Row(
+    // Wrapping, not a horizontal scroller: eight chips do not fit on a 411 dp screen, and
+    // in a scroller "Фильм" is off the right edge until the user thinks to swipe for it.
+    FlowRow(
         Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         DesignChip(
             label = "Все",
