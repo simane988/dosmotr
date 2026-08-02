@@ -11,8 +11,14 @@
 #   scripts/emulator.sh gui      # boot in a window, on the host GPU, animations on
 #   scripts/emulator.sh stop     # shut it down
 #   scripts/emulator.sh status   # is it up, in which mode, and what it costs in RAM
-#   scripts/emulator.sh test     # start on the GPU, then run connectedDebugAndroidTest
+#   scripts/emulator.sh test     # start on the GPU, run the suite, shut it down again
 #   scripts/emulator.sh test --headless   # the slow swiftshader path CI uses
+#   scripts/emulator.sh test --keep       # leave the emulator up afterwards
+#
+# `test` puts back what it found: an emulator it started is stopped when the suite
+# ends (however it ends — failure, Ctrl-C), because 2.3G held for the rest of the
+# day on an 8G machine is 2.3G Gradle does not get. One that was already running in
+# the mode asked for is left alone, since it is not this run's to close.
 #
 # `start` is idempotent: if the AVD is already booted it just re-applies the
 # wake/animation settings and returns.
@@ -248,16 +254,31 @@ cmd_test() {
   # the time of swiftshader and holds a gigabyte less (50s / 2342M against
   # 116s / 3390M when this was measured). --headless is for reproducing CI, which
   # is the only reason to want the slow path.
-  local mode=gui
-  case "${1:-}" in
-    --headless) mode=headless; shift ;;
-    --gui) shift ;;
-  esac
+  local mode=gui keep=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --headless) mode=headless; shift ;;
+      --gui) shift ;;
+      --keep) keep=1; shift ;;
+      *) break ;;                 # everything else is for Gradle
+    esac
+  done
   # No display to put the window on (a bare tty, ssh): gui would fail at launch.
   if [[ "$mode" == gui && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
     warn "no DISPLAY/WAYLAND_DISPLAY — falling back to headless"
     mode=headless
   fi
+
+  # Whose emulator is this? One that was already up in the mode asked for belongs
+  # to whoever started it, and is left alone. Anything this run boots — including
+  # a restart because the live one was in the other mode — is this run's to shut
+  # down again: 2.3G held indefinitely on an 8G machine is the whole complaint.
+  local own=1
+  if serial_of_avd >/dev/null 2>&1 && [[ "$(running_mode)" == "$mode" ]]; then
+    own=0
+  fi
+  (( keep )) && own=0
+
   # cmd_start reuses an emulator that is already in this mode and restarts one
   # that is in the other, so the mode asked for here is the mode the suite runs in.
   cmd_start "$mode"
@@ -276,9 +297,27 @@ cmd_test() {
 
   cd "$(dirname "${BASH_SOURCE[0]}")/.."
   log "connectedDebugAndroidTest on $serial"
+
+  # Ctrl-C during the suite must not leak the emulator either.
+  if (( own )); then
+    trap 'warn "interrupted — stopping the emulator"; cmd_stop; exit 130' INT TERM
+  fi
+
   # AGP's finalizer reinstalls debug after the run (see app/build.gradle.kts), so
   # the emulator keeps a build on it either way.
-  ANDROID_SERIAL="$serial" ./gradlew connectedDebugAndroidTest "${@}"
+  local rc=0
+  ANDROID_SERIAL="$serial" ./gradlew connectedDebugAndroidTest "${@}" || rc=$?
+
+  if (( own )); then
+    trap - INT TERM
+    log "suite finished (exit $rc) — stopping the emulator this run started"
+    cmd_stop
+  elif (( keep )); then
+    log "leaving $serial up (--keep)"
+  else
+    log "leaving $serial up — it was already running before this"
+  fi
+  return $rc
 }
 
 case "${1:-start}" in
@@ -287,5 +326,5 @@ case "${1:-start}" in
   stop) cmd_stop ;;
   status) cmd_status ;;
   test) shift; cmd_test "$@" ;;
-  *) die "usage: $0 {start|gui|stop|status|test [--headless] [gradle args…]}" ;;
+  *) die "usage: $0 {start|gui|stop|status|test [--headless|--gui] [--keep] [gradle args…]}" ;;
 esac
