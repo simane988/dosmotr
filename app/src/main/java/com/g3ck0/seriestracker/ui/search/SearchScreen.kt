@@ -60,6 +60,7 @@ import com.g3ck0.seriestracker.ui.common.IndeterminateProgressBar
 import com.g3ck0.seriestracker.ui.common.PillSearchField
 import com.g3ck0.seriestracker.ui.common.Poster
 import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
+import com.g3ck0.seriestracker.ui.common.UserError
 import com.g3ck0.seriestracker.ui.common.label
 
 object SearchTags {
@@ -179,7 +180,7 @@ fun SearchContent(
                 when {
                     !state.hasBackend -> NoBackend(onManual = { manualDialog = true })
 
-                    state.error != null -> ErrorBlock(message = state.error, onRetry = onSearchNow)
+                    state.error != null -> ErrorBlock(error = state.error, onRetry = onSearchNow)
 
                     state.results.isEmpty() && !state.loading && state.query.isNotBlank() ->
                         NothingFound(query = state.query, onManual = { manualDialog = true })
@@ -348,11 +349,11 @@ private fun NothingFound(query: String, onManual: () -> Unit) {
 }
 
 @Composable
-private fun ErrorBlock(message: String, onRetry: () -> Unit) {
+private fun ErrorBlock(error: UserError, onRetry: () -> Unit) {
     CenteredMessage(
         tag = SearchTags.ERROR,
-        title = message,
-        body = null,
+        title = error.title,
+        body = error.body,
         actionLabel = "Повторить",
         onAction = onRetry,
     )

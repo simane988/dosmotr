@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.repository.SearchItem
+import com.g3ck0.seriestracker.ui.common.UserError
 import com.g3ck0.seriestracker.ui.search.ManualAddTags
 import com.g3ck0.seriestracker.ui.search.SearchContent
 import com.g3ck0.seriestracker.ui.search.SearchTags
@@ -144,13 +145,16 @@ class SearchContentTest {
         var retried = false
         compose.setThemedContent {
             SearchContent(
-                state = SearchUiState(error = "Нет сети"),
+                state = SearchUiState(
+                    error = UserError("Нет сети", "Проверь сеть и попробуй ещё раз"),
+                ),
                 onSearchNow = { retried = true },
             )
         }
 
         compose.onNodeWithTag(SearchTags.ERROR).assertIsDisplayed()
         compose.onNodeWithText("Нет сети").assertIsDisplayed()
+        compose.onNodeWithText("Проверь сеть и попробуй ещё раз").assertIsDisplayed()
         compose.onNodeWithText("Повторить").performClick()
 
         assertTrue(retried)

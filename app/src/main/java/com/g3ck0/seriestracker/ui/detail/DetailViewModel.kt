@@ -7,6 +7,7 @@ import com.g3ck0.seriestracker.data.local.EpisodeEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
+import com.g3ck0.seriestracker.ui.common.toUserError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -125,7 +126,7 @@ class DetailViewModel @Inject constructor(
     fun refresh() = viewModelScope.launch {
         refreshing.value = true
         repository.refreshFromBackend(titleId)
-            .onFailure { message.value = it.message ?: "Не удалось обновить" }
+            .onFailure { message.value = it.toUserError("Не удалось обновить").combined }
             .onSuccess { message.value = "Обновлено" }
         refreshing.value = false
     }
