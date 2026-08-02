@@ -264,7 +264,13 @@ Afterwards sync with `git pull`, never with a local merge.
 ```bash
 scripts/close-task.sh feature-11                       # title = last commit subject
 scripts/close-task.sh bug-3 --title "fix: …" --no-wait
+scripts/close-task.sh bug-3 --body-file todo/.grind/bug-3.pr.md
 ```
+
+**The PR description is prose in Russian** — what was wrong, what changed and why, how it
+was verified — because the PR page is what gets read later, and a title plus a link to the
+spec is not that. `--body-file` is how a session hands its own text over; the `Closes
+<spec>` line is appended by the script. Without the flag the body is that link alone.
 
 It refuses to run anywhere but a `feature/**` branch, or with a dirty tree, then:
 
@@ -309,6 +315,13 @@ phases never run. Print mode ends on its own. To keep it watchable the sessions 
 `scripts/claude-stream.py`, which renders thinking, tool calls and their results the way an
 interactive session shows them. So: watch, do not type. `--text-out` on that filter is also
 how the reviewer's reply is captured for the `VERDICT:` line.
+
+**The prompt goes in on stdin, never as a trailing argument.** `--tools` is variadic, so
+anything after it — the prompt included — is read as one more tool name, and claude exits
+with `Input must be provided either through stdin or as a prompt argument when using
+--print`. That is exactly how a review round once produced an empty report, which the loop
+then read as "no verdict" and treated as an approval. An empty report is now a failure that
+leaves the PR open instead.
 
 Since nobody can answer, the task prompt tells the session to decide open questions itself
 and state the assumption — a question there just ends the turn with the task unfinished,
