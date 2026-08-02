@@ -96,8 +96,11 @@ Two things the script exists to get right:
 - **It applies what CI's `disable-animations: true` applies** — all three animation
   scales — plus the `KEYCODE_WAKEUP` above, on every start.
 
-`-no-window` is fixed at launch, so switching between the two modes means `stop` first;
-the script refuses rather than silently handing back the wrong one.
+`-no-window` is fixed at launch, so **the mode you ask for is the mode you get**: asking
+for the one the emulator is already in reuses it, asking for the other stops it and boots
+it again. The live mode is read off the running process (`-no-window` on its command line),
+not off `/tmp/dosmotr-emulator.mode`, so an emulator someone started by hand is classified
+correctly too — which is what used to leave `test` silently on swiftshader.
 
 The emulator wants ~2.5G next to Gradle's ~2.8G, which does not fit in 8G. This machine
 carries a second swap file (`/swap2.img`, 8G) for exactly that; a run peaks around 5.6G
