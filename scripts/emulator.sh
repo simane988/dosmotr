@@ -11,7 +11,8 @@
 #   scripts/emulator.sh gui      # boot in a window, on the host GPU, animations on
 #   scripts/emulator.sh stop     # shut it down
 #   scripts/emulator.sh status   # is it up, in which mode, and what it costs in RAM
-#   scripts/emulator.sh test     # start, then run connectedDebugAndroidTest on it
+#   scripts/emulator.sh test     # start on the GPU, then run connectedDebugAndroidTest
+#   scripts/emulator.sh test --headless   # the slow swiftshader path CI uses
 #
 # `start` is idempotent: if the AVD is already booted it just re-applies the
 # wake/animation settings and returns.
@@ -20,6 +21,11 @@
 # emulator), so switching means `stop` first. The two also differ deliberately
 # beyond the window: gui renders on the real GPU and leaves animations at 1x,
 # because watching the nav pill animate is the point of having a window.
+#
+# gui is also the *faster* of the two — the host GPU finished the suite in 50s
+# against swiftshader's 116s, on a gigabyte less RSS — so `test` boots that way
+# unless it is told otherwise or there is no display to draw on. Headless is worth
+# asking for when a test fails only in the pipeline and has to be reproduced.
 #
 # Use `test` rather than calling Gradle directly whenever the phone might also be
 # plugged in: connectedDebugAndroidTest installs on *every* connected device, so
@@ -192,11 +198,24 @@ cmd_status() {
 }
 
 cmd_test() {
-  # Reuse whatever is already up — a windowed emulator runs the suite fine, it is
-  # only slower. Starting from cold defaults to headless.
-  local mode=headless
+  # From cold, gui: it renders on the host GPU, which finishes the suite in half
+  # the time of swiftshader and holds a gigabyte less (50s / 2342M against
+  # 116s / 3390M when this was measured). --headless is for reproducing CI, which
+  # is the only reason to want the slow path.
+  local mode=gui
+  case "${1:-}" in
+    --headless) mode=headless; shift ;;
+    --gui) shift ;;
+  esac
+  # No display to put the window on (a bare tty, ssh): gui would fail at launch.
+  if [[ "$mode" == gui && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+    warn "no DISPLAY/WAYLAND_DISPLAY — falling back to headless"
+    mode=headless
+  fi
+  # An emulator that is already up keeps whatever mode it booted in: -no-window
+  # cannot be toggled on a running one.
   if serial_of_avd >/dev/null 2>&1; then
-    mode=$(cat "$MODE_FILE" 2>/dev/null || echo headless)
+    mode=$(cat "$MODE_FILE" 2>/dev/null || echo "$mode")
   fi
   cmd_start "$mode"
 
@@ -225,5 +244,5 @@ case "${1:-start}" in
   stop) cmd_stop ;;
   status) cmd_status ;;
   test) shift; cmd_test "$@" ;;
-  *) die "usage: $0 {start|gui|stop|status|test}" ;;
+  *) die "usage: $0 {start|gui|stop|status|test [--headless] [gradle args…]}" ;;
 esac

@@ -28,7 +28,8 @@ export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH
   -Pandroid.testInstrumentationRunnerArguments.class=com.g3ck0.seriestracker.ui.StatsContentTest
 
 scripts/emulator.sh gui          # local AVD in a window — the fast path, see below
-scripts/emulator.sh test         # start it, then run the suite pinned to it
+scripts/emulator.sh test         # start it on the GPU, then run the suite pinned to it
+scripts/emulator.sh test --headless   # the swiftshader path CI uses, for reproducing it
 
 ./gradlew :app:lintDebug         # what CI's `static` job fails on
 ./gradlew detekt                 # applied at the root, covers app/src entirely
@@ -80,8 +81,13 @@ real GPU, which is *faster* than the headless mode, not slower.
 | animations      | 0                      | 1x                 |
 
 Software rendering competes for the same cores the tests run on and costs an extra
-gigabyte of buffers. Headless is still what CI uses, so it is the mode to reproduce in
-when a test fails only in the pipeline.
+gigabyte of buffers. So **`test` boots gui from cold** — `scripts/emulator.sh test
+--headless` is the opt-out, and it opts out automatically when neither `DISPLAY` nor
+`WAYLAND_DISPLAY` is set (a bare tty, ssh), where a window cannot be drawn at all. An
+emulator that is already up keeps the mode it booted in either way.
+
+Headless is still what CI uses, so it is the mode to reproduce in when a test fails only
+in the pipeline.
 
 Two things the script exists to get right:
 
