@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -37,8 +38,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -97,6 +100,9 @@ object LibraryTags {
     /** Menu entries repeat the filter-chip labels, so they need their own handles. */
     fun statusItem(status: WatchStatus) = "library:menu:${status.name}"
     const val DELETE_ITEM = "library:menu:delete"
+
+    /** Header naming the card the menu belongs to — the menu can cover that card. */
+    const val MENU_TITLE = "library:menu:title"
 
     // Chips live in a horizontal scroller; tags let tests scroll to them by identity.
     const val CHIP_ALL = "library:chip:all"
@@ -170,10 +176,11 @@ fun LibraryScreen(
 
     LibraryContent(
         state = state,
-        message = state.message ?: backupState.message,
+        message = state.message ?: backupState.message?.let { LibraryMessage(it) },
         onMessageShown = {
             if (state.message != null) viewModel.consumeMessage() else backupViewModel.consumeMessage()
         },
+        onMessageAction = viewModel::undoDelete,
         onQueryChange = viewModel::setQuery,
         onStatusFilter = viewModel::setStatusFilter,
         onMediaFilter = viewModel::setMediaFilter,
@@ -193,8 +200,9 @@ private val IMPORT_TYPES = arrayOf("application/json", "text/plain", "applicatio
 @Composable
 fun LibraryContent(
     state: LibraryUiState,
-    message: String? = null,
+    message: LibraryMessage? = null,
     onMessageShown: () -> Unit = {},
+    onMessageAction: () -> Unit = {},
     onQueryChange: (String) -> Unit = {},
     onStatusFilter: (WatchStatus?) -> Unit = {},
     onMediaFilter: (MediaType?) -> Unit = {},
@@ -214,8 +222,15 @@ fun LibraryContent(
 
     LaunchedEffect(message) {
         message?.let {
-            snackbar.showSnackbar(it)
+            val result = snackbar.showSnackbar(
+                message = it.text,
+                actionLabel = it.action,
+                duration = if (it.action == null) SnackbarDuration.Short else SnackbarDuration.Long,
+            )
+            // Consumed first, then acted on: the action posts a message of its own
+            // ("восстановлен"), and consuming afterwards would wipe it before it is shown.
             onMessageShown()
+            if (result == SnackbarResult.ActionPerformed) onMessageAction()
         }
     }
 
@@ -508,7 +523,12 @@ private fun TitleCard(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    OverflowMenu(titleId = title.id, onStatus = onStatus, onDelete = onDelete)
+                    OverflowMenu(
+                        titleId = title.id,
+                        titleName = title.name,
+                        onStatus = onStatus,
+                        onDelete = onDelete,
+                    )
                     if (title.isMovie) {
                         // A watched and an unwatched movie must not share one look: the
                         // pill is filled with a solid check once watched, and an outlined
@@ -582,7 +602,12 @@ private fun ActionPill(
 }
 
 @Composable
-private fun OverflowMenu(titleId: String, onStatus: (WatchStatus) -> Unit, onDelete: () -> Unit) {
+private fun OverflowMenu(
+    titleId: String,
+    titleName: String,
+    onStatus: (WatchStatus) -> Unit,
+    onDelete: () -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         Surface(
@@ -601,6 +626,21 @@ private fun OverflowMenu(titleId: String, onStatus: (WatchStatus) -> Unit, onDel
             onDismissRequest = { expanded = false },
             shape = RoundedCornerShape(16.dp),
         ) {
+            // The menu is anchored to a 36dp button and opens upwards on the lower cards,
+            // covering the ones above it — including the card it belongs to. Without this
+            // header there is nothing on screen saying which title is about to be deleted.
+            Text(
+                text = titleName,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .widthIn(max = 240.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .testTag(LibraryTags.MENU_TITLE),
+            )
+            HorizontalDivider()
             WatchStatus.entries.forEach { status ->
                 DropdownMenuItem(
                     text = { Text(status.label) },
