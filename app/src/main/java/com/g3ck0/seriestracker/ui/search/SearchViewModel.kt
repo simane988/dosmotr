@@ -105,7 +105,7 @@ class SearchViewModel @Inject constructor(
             }
     }
 
-    fun add(item: SearchItem, status: WatchStatus = WatchStatus.WATCHING) = viewModelScope.launch {
+    fun add(item: SearchItem, status: WatchStatus = WatchStatus.PLANNED) = viewModelScope.launch {
         repository.add(item, status)
             .onSuccess { _state.value = _state.value.copy(message = "«${item.name}» добавлен") }
             .onFailure {

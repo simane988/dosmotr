@@ -98,6 +98,7 @@ class TrackerRepositoryTest {
         assertEquals("Offline Series", stored!!.name)
         // Not loaded, so the detail screen knows to retry later.
         assertFalse(stored.episodesLoaded)
+        assertEquals(WatchStatus.PLANNED, stored.status)
     }
 
     @Test
@@ -164,6 +165,7 @@ class TrackerRepositoryTest {
         assertEquals(listOf(1, 2, 3, 1, 2), episodes.map { it.episodeNumber })
         assertTrue(episodes.all { it.runtimeMinutes == 30 })
         assertTrue(dao.getTitle(id)!!.episodesLoaded)
+        assertEquals(WatchStatus.PLANNED, dao.getTitle(id)!!.status)
     }
 
     @Test
@@ -172,6 +174,7 @@ class TrackerRepositoryTest {
 
         assertTrue(dao.getEpisodes(id).isEmpty())
         assertEquals(MediaType.MOVIE, dao.getTitle(id)!!.mediaType)
+        assertEquals(WatchStatus.PLANNED, dao.getTitle(id)!!.status)
     }
 
     // --- progress and status ---
