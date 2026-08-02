@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -52,6 +51,7 @@ import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.ui.FloatingNavClearance
 import com.g3ck0.seriestracker.ui.common.ClearFocusWhenDialogCloses
 import com.g3ck0.seriestracker.ui.common.ExtendedActionButton
+import com.g3ck0.seriestracker.ui.common.IndeterminateProgressBar
 import com.g3ck0.seriestracker.ui.common.PillSearchField
 import com.g3ck0.seriestracker.ui.common.Poster
 import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
@@ -163,11 +163,10 @@ fun SearchContent(
                 )
 
                 if (state.loading) {
-                    LinearProgressIndicator(
+                    IndeterminateProgressBar(
                         Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp)
-                            .height(4.dp)
                             .testTag(SearchTags.LOADING)
                     )
                 }

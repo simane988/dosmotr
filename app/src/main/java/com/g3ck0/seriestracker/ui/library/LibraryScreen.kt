@@ -35,7 +35,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -75,6 +74,7 @@ import com.g3ck0.seriestracker.ui.common.DialogTextButton
 import com.g3ck0.seriestracker.ui.common.ExtendedActionButton
 import com.g3ck0.seriestracker.ui.common.PillSearchField
 import com.g3ck0.seriestracker.ui.common.Poster
+import com.g3ck0.seriestracker.ui.common.ProgressBar
 import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
 import com.g3ck0.seriestracker.ui.common.label
 import com.g3ck0.seriestracker.ui.common.nextLabel
@@ -496,10 +496,10 @@ private fun TitleCard(
                             modifier = Modifier.testTag(LibraryTags.nextEpisode(title.id)),
                         )
                         Spacer(Modifier.height(6.dp))
-                        LinearProgressIndicator(
+                        ProgressBar(
                             progress = { item.progress },
-                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
-                            modifier = Modifier.fillMaxWidth().height(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            height = 8.dp,
                         )
                     }
                 }

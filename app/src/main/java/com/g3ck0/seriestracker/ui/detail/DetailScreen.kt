@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -57,7 +56,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +72,9 @@ import com.g3ck0.seriestracker.ui.common.ClearFocusWhenDialogCloses
 import com.g3ck0.seriestracker.ui.common.DesignChip
 import com.g3ck0.seriestracker.ui.common.DesignDialog
 import com.g3ck0.seriestracker.ui.common.DialogTextButton
+import com.g3ck0.seriestracker.ui.common.IndeterminateProgressBar
 import com.g3ck0.seriestracker.ui.common.Poster
+import com.g3ck0.seriestracker.ui.common.ProgressBar
 import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
 import com.g3ck0.seriestracker.ui.common.episodeCode
 import com.g3ck0.seriestracker.ui.common.formatMinutes
@@ -216,8 +216,8 @@ fun DetailContent(
                     onDelete = { confirmDelete = true },
                 )
                 if (state.refreshing) {
-                    LinearProgressIndicator(
-                        Modifier.fillMaxWidth().height(4.dp).testTag(DetailTags.REFRESHING)
+                    IndeterminateProgressBar(
+                        Modifier.fillMaxWidth().testTag(DetailTags.REFRESHING)
                     )
                 }
 
@@ -587,10 +587,9 @@ private fun ProgressBlock(
                 fontWeight = FontWeight.Medium,
             )
             Spacer(Modifier.height(8.dp))
-            LinearProgressIndicator(
+            ProgressBar(
                 progress = { item.progress },
-                strokeCap = StrokeCap.Round,
-                modifier = Modifier.fillMaxWidth().height(6.dp),
+                modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(12.dp))
             if (next != null) {
