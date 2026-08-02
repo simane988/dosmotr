@@ -32,7 +32,7 @@ data class LibraryUiState(
     val loading: Boolean = true,
     val items: List<TitleWithProgress> = emptyList(),
     val filters: LibraryFilters = LibraryFilters(),
-    val totalCount: Int = 0,
+    val totalCount: Int = items.size,
     val message: LibraryMessage? = null,
 )
 

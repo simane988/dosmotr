@@ -61,6 +61,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -92,6 +93,8 @@ object LibraryTags {
     const val LIST = "library:list"
     const val FILTER_QUERY = "library:query"
     const val EMPTY = "library:empty"
+    const val EMPTY_SEARCH = "library:empty:search"
+    const val EMPTY_IMPORT = "library:empty:import"
     const val TOP_MENU = "library:topMenu"
     const val EXPORT = "library:export"
     const val IMPORT = "library:import"
@@ -249,24 +252,30 @@ fun LibraryContent(
                     onAbout = { aboutOpen = true },
                 )
 
-                PillSearchField(
-                    value = state.filters.query,
-                    onValueChange = onQueryChange,
-                    placeholder = "Фильтр по названию",
-                    fieldModifier = Modifier.testTag(LibraryTags.FILTER_QUERY),
-                    modifier = Modifier
-                        .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
-                )
+                if (state.totalCount > 0) {
+                    PillSearchField(
+                        value = state.filters.query,
+                        onValueChange = onQueryChange,
+                        placeholder = "Фильтр по названию",
+                        fieldModifier = Modifier.testTag(LibraryTags.FILTER_QUERY),
+                        modifier = Modifier
+                            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+                    )
 
-                FilterRow(
-                    selectedStatus = state.filters.status,
-                    selectedType = state.filters.mediaType,
-                    onStatus = onStatusFilter,
-                    onType = onMediaFilter,
-                )
+                    FilterRow(
+                        selectedStatus = state.filters.status,
+                        selectedType = state.filters.mediaType,
+                        onStatus = onStatusFilter,
+                        onType = onMediaFilter,
+                    )
+                }
 
                 if (state.items.isEmpty() && !state.loading) {
-                    EmptyLibrary(hasAnything = state.totalCount > 0)
+                    EmptyLibrary(
+                        hasAnything = state.totalCount > 0,
+                        onSearch = onSearch,
+                        onImport = onImport,
+                    )
                 } else {
                     LazyColumn(
                         contentPadding = PaddingValues(
@@ -671,7 +680,11 @@ private fun OverflowMenu(
 }
 
 @Composable
-private fun EmptyLibrary(hasAnything: Boolean) {
+private fun EmptyLibrary(
+    hasAnything: Boolean,
+    onSearch: () -> Unit = {},
+    onImport: () -> Unit = {},
+) {
     Box(
         Modifier.fillMaxSize().testTag(LibraryTags.EMPTY),
         contentAlignment = Alignment.Center,
@@ -694,7 +707,25 @@ private fun EmptyLibrary(hasAnything: Boolean) {
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
+            if (!hasAnything) {
+                Spacer(Modifier.height(16.dp))
+                ExtendedActionButton(
+                    icon = Icons.Filled.Add,
+                    label = "Найти сериал или фильм",
+                    onClick = onSearch,
+                    modifier = Modifier.testTag(LibraryTags.EMPTY_SEARCH),
+                )
+                Spacer(Modifier.height(8.dp))
+                ActionPill(
+                    icon = Icons.Filled.FileUpload,
+                    label = "Импорт из JSON",
+                    filled = false,
+                    onClick = onImport,
+                    modifier = Modifier.testTag(LibraryTags.EMPTY_IMPORT),
+                )
+            }
         }
     }
 }

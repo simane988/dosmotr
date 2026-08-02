@@ -151,6 +151,28 @@ class LibraryContentTest {
     }
 
     @Test
+    fun emptyLibraryHidesFiltersAndOffersSearchAndImport() {
+        var searched = false
+        var imported = false
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(loading = false, items = emptyList(), totalCount = 0),
+                onSearch = { searched = true },
+                onImport = { imported = true },
+            )
+        }
+
+        compose.onNodeWithTag(LibraryTags.FILTER_QUERY).assertDoesNotExist()
+        compose.onNodeWithTag(LibraryTags.CHIP_ALL).assertDoesNotExist()
+
+        compose.onNodeWithTag(LibraryTags.EMPTY_SEARCH).assertIsDisplayed().performClick()
+        assertTrue(searched)
+
+        compose.onNodeWithTag(LibraryTags.EMPTY_IMPORT).assertIsDisplayed().performClick()
+        assertTrue(imported)
+    }
+
+    @Test
     fun filteredToNothingSaysFiltersNotEmptyLibrary() {
         compose.setThemedContent {
             LibraryContent(
@@ -159,6 +181,9 @@ class LibraryContentTest {
         }
 
         compose.onNodeWithText("Ничего не найдено по фильтрам").assertIsDisplayed()
+        compose.onNodeWithTag(LibraryTags.FILTER_QUERY).assertIsDisplayed()
+        compose.onNodeWithTag(LibraryTags.CHIP_ALL).assertIsDisplayed()
+        compose.onNodeWithTag(LibraryTags.EMPTY_SEARCH).assertDoesNotExist()
     }
 
     @Test
