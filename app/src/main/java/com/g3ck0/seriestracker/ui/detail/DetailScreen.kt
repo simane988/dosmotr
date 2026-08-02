@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -98,6 +99,8 @@ object DetailTags {
     const val NOT_FOUND = "detail:notFound"
     const val TAB_OVERVIEW = "detail:tab:overview"
     const val TAB_EPISODES = "detail:tab:episodes"
+    const val OVERVIEW = "detail:overview"
+    const val OVERVIEW_EXPAND = "detail:overviewExpand"
     fun statusChip(status: WatchStatus) = "detail:status:${status.name}"
     fun rating(value: Int) = "detail:rating:$value"
     fun seasonHeader(season: Int) = "detail:season:$season"
@@ -107,6 +110,10 @@ object DetailTags {
     /** The row is clickable, the checkbox is toggleable — assertions need the latter. */
     fun episodeCheckbox(season: Int, episode: Int) = "detail:episodeCheck:$season:$episode"
     fun watchUpTo(season: Int, episode: Int) = "detail:upTo:$season:$episode"
+
+    /** Chevron that reveals the episode synopsis; the row itself stays a watched toggle. */
+    fun episodeExpand(season: Int, episode: Int) = "detail:episodeExpand:$season:$episode"
+    fun episodeOverview(season: Int, episode: Int) = "detail:episodeOverview:$season:$episode"
 }
 
 /** Which half of the detail screen is on show. */
@@ -163,6 +170,11 @@ fun DetailContent(
     var confirmDelete by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(DetailTab.OVERVIEW) }
     val expanded = remember { mutableStateMapOf<Int, Boolean>() }
+    // Both expansions are hoisted out of the list items: remember() inside a LazyColumn item
+    // is dropped as soon as the row scrolls out of composition, so the block would collapse
+    // itself behind the user's back.
+    var overviewExpanded by remember { mutableStateOf(false) }
+    val expandedEpisodes = remember { mutableStateMapOf<String, Boolean>() }
 
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -254,6 +266,16 @@ fun DetailContent(
                         item(key = "status", contentType = "status") {
                             StatusPicker(current = item.title.status, onSelect = onStatus)
                         }
+                        // Manually added titles have no synopsis at all — no empty block for them.
+                        if (item.title.overview.isNotBlank()) {
+                            item(key = "overview", contentType = "overview") {
+                                OverviewBlock(
+                                    text = item.title.overview,
+                                    expanded = overviewExpanded,
+                                    onToggle = { overviewExpanded = !overviewExpanded },
+                                )
+                            }
+                        }
                         item(key = "progress", contentType = "progress") {
                             ProgressBlock(
                                 item = item,
@@ -271,33 +293,14 @@ fun DetailContent(
                             NotesBlock(initial = item.title.notes, onSave = onNotes)
                         }
                     } else {
-                        state.seasons.forEach { season ->
-                            val isOpen = expanded[season.number] ?: false
-                            item(key = "season_${season.number}", contentType = "seasonHeader") {
-                                SeasonHeader(
-                                    number = season.number,
-                                    watchedCount = season.watchedCount,
-                                    total = season.episodes.size,
-                                    allWatched = season.allWatched,
-                                    expanded = isOpen,
-                                    onToggleExpand = { expanded[season.number] = !isOpen },
-                                    onToggleWatched = { onToggleSeason(season) },
-                                )
-                            }
-                            if (isOpen) {
-                                items(
-                                    items = season.episodes,
-                                    key = { "ep_${season.number}_${it.episodeNumber}" },
-                                    contentType = { "episode" },
-                                ) { episode ->
-                                    EpisodeRow(
-                                        episode = episode,
-                                        onToggle = onToggleEpisode,
-                                        onWatchUpTo = onWatchUpTo,
-                                    )
-                                }
-                            }
-                        }
+                        seasonsSection(
+                            seasons = state.seasons,
+                            expandedSeasons = expanded,
+                            expandedEpisodes = expandedEpisodes,
+                            onToggleEpisode = onToggleEpisode,
+                            onToggleSeason = onToggleSeason,
+                            onWatchUpTo = onWatchUpTo,
+                        )
                     }
                 }
             }
@@ -306,6 +309,54 @@ fun DetailContent(
                 hostState = snackbar,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        }
+    }
+}
+
+/**
+ * The "Серии" half of the list: a header per season and, while it is open, its episodes.
+ *
+ * Both expansion maps are owned by [DetailContent] — a LazyColumn drops the state of an
+ * item that scrolls out of composition, so neither can live inside a row.
+ */
+private fun LazyListScope.seasonsSection(
+    seasons: List<Season>,
+    expandedSeasons: MutableMap<Int, Boolean>,
+    expandedEpisodes: MutableMap<String, Boolean>,
+    onToggleEpisode: (EpisodeEntity) -> Unit,
+    onToggleSeason: (Season) -> Unit,
+    onWatchUpTo: (EpisodeEntity) -> Unit,
+) {
+    seasons.forEach { season ->
+        val isOpen = expandedSeasons[season.number] ?: false
+        item(key = "season_${season.number}", contentType = "seasonHeader") {
+            SeasonHeader(
+                number = season.number,
+                watchedCount = season.watchedCount,
+                total = season.episodes.size,
+                allWatched = season.allWatched,
+                expanded = isOpen,
+                onToggleExpand = { expandedSeasons[season.number] = !isOpen },
+                onToggleWatched = { onToggleSeason(season) },
+            )
+        }
+        if (isOpen) {
+            items(
+                items = season.episodes,
+                key = { "ep_${season.number}_${it.episodeNumber}" },
+                contentType = { "episode" },
+            ) { episode ->
+                val key = "${episode.seasonNumber}:${episode.episodeNumber}"
+                EpisodeRow(
+                    episode = episode,
+                    onToggle = onToggleEpisode,
+                    onWatchUpTo = onWatchUpTo,
+                    overviewExpanded = expandedEpisodes[key] ?: false,
+                    onToggleOverview = {
+                        expandedEpisodes[key] = !(expandedEpisodes[key] ?: false)
+                    },
+                )
+            }
         }
     }
 }
@@ -496,6 +547,42 @@ private fun StatusPicker(current: WatchStatus, onSelect: (WatchStatus) -> Unit) 
                 selected = current == status,
                 onClick = { onSelect(status) },
                 modifier = Modifier.testTag(DetailTags.statusChip(status)),
+            )
+        }
+    }
+}
+
+/** How much of the synopsis is shown before "Показать полностью". */
+private const val OVERVIEW_COLLAPSED_LINES = 4
+
+@Composable
+private fun OverviewBlock(text: String, expanded: Boolean, onToggle: () -> Unit) {
+    // A short synopsis needs no button, and whether it is short is only known once the
+    // collapsed layout has run — hence reading hasVisualOverflow rather than counting
+    // characters.
+    var overflows by remember(text) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (expanded) Int.MAX_VALUE else OVERVIEW_COLLAPSED_LINES,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { if (!expanded) overflows = it.hasVisualOverflow },
+            modifier = Modifier.fillMaxWidth().testTag(DetailTags.OVERVIEW),
+        )
+        if (overflows) {
+            Text(
+                text = if (expanded) "Свернуть" else "Показать полностью",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onToggle)
+                    .padding(vertical = 4.dp)
+                    .testTag(DetailTags.OVERVIEW_EXPAND),
             )
         }
     }
@@ -821,7 +908,10 @@ private fun EpisodeRow(
     episode: EpisodeEntity,
     onToggle: (EpisodeEntity) -> Unit,
     onWatchUpTo: (EpisodeEntity) -> Unit,
+    overviewExpanded: Boolean = false,
+    onToggleOverview: () -> Unit = {},
 ) {
+    val hasOverview = episode.overview.isNotBlank()
     Column {
         Row(
             Modifier
@@ -871,6 +961,45 @@ private fun EpisodeRow(
                     }
                 }
             }
+            // A tap on the row is already the watched toggle, so the synopsis opens from
+            // its own chevron instead of stealing that gesture.
+            if (hasOverview) {
+                Surface(
+                    onClick = onToggleOverview,
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .testTag(DetailTags.episodeExpand(episode.seasonNumber, episode.episodeNumber)),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (overviewExpanded) {
+                                Icons.Filled.ExpandLess
+                            } else {
+                                Icons.Filled.ExpandMore
+                            },
+                            contentDescription = if (overviewExpanded) {
+                                "Скрыть описание серии"
+                            } else {
+                                "Описание серии"
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        if (hasOverview && overviewExpanded) {
+            Text(
+                text = episode.overview,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 48.dp, end = 16.dp, bottom = 8.dp)
+                    .testTag(DetailTags.episodeOverview(episode.seasonNumber, episode.episodeNumber)),
+            )
         }
         HorizontalDivider(
             modifier = Modifier.padding(start = 16.dp),
