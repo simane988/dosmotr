@@ -18,9 +18,13 @@
 # wake/animation settings and returns.
 #
 # headless vs gui is fixed at launch (-no-window cannot be toggled on a running
-# emulator), so switching means `stop` first. The two also differ deliberately
-# beyond the window: gui renders on the real GPU and leaves animations at 1x,
-# because watching the nav pill animate is the point of having a window.
+# emulator), so asking for the mode it is *not* in restarts it — the mode you ask
+# for is the mode you get, and asking for the one it is already in does nothing.
+# The live mode is read off the running process, not off a state file, so an
+# emulator someone started by hand is classified correctly too. The two modes also
+# differ deliberately beyond the window: gui renders on the real GPU and leaves
+# animations at 1x, because watching the nav pill animate is the point of having
+# a window.
 #
 # gui is also the *faster* of the two — the host GPU finished the suite in 50s
 # against swiftshader's 116s, on a gigabyte less RSS — so `test` boots that way
@@ -124,6 +128,28 @@ prepare_device() {
 
 MODE_FILE=/tmp/dosmotr-emulator.mode
 
+# The emulator's own processes, as "<pid> <cmdline>" lines. Matching on the AVD
+# name alone is not enough: any shell that merely mentions it — this script's own
+# `bash -c`, a grep, a Claude session — matches too, and killing by pattern would
+# then take that shell out. So the binary has to live under $ANDROID_HOME.
+emulator_procs() {
+  pgrep -a -f -- "-avd $AVD_NAME" 2>/dev/null \
+    | awk -v home="$ANDROID_HOME/" '$2 ~ "^" home' || true
+}
+
+# Which mode the live emulator is actually in. The process is the source of truth
+# — `-no-window` is on its command line — because the mode file is gone whenever
+# the emulator was started by hand, or by an older copy of this script.
+running_mode() {
+  local args
+  args=$(emulator_procs | head -1)
+  if [[ -n "$args" ]]; then
+    [[ "$args" == *-no-window* ]] && echo headless || echo gui
+    return 0
+  fi
+  cat "$MODE_FILE" 2>/dev/null || echo unknown
+}
+
 cmd_start() {
   local mode=${1:-headless}
   [[ -x "$ANDROID_HOME/emulator/emulator" ]] || die "emulator not installed: sdkmanager --install emulator"
@@ -132,16 +158,17 @@ cmd_start() {
 
   local serial
   if serial=$(serial_of_avd); then
-    # -no-window is fixed at launch, so an already-running emulator cannot grow a
-    # window. Say so instead of silently handing back the wrong mode.
-    local running_mode; running_mode=$(cat "$MODE_FILE" 2>/dev/null || echo unknown)
-    if [[ "$running_mode" != "$mode" && "$running_mode" != unknown ]]; then
-      warn "$AVD_NAME is already running in '$running_mode' mode; the window is decided at launch."
-      die "run '$0 stop' first, then '$0 $mode'"
+    # -no-window is fixed at launch, so an already-running emulator cannot grow
+    # or lose its window. Asking for the mode it is already in costs nothing;
+    # asking for the other one means restarting it, which is what you meant.
+    local live; live=$(running_mode)
+    if [[ "$live" == "$mode" || "$live" == unknown ]]; then
+      log "$AVD_NAME already running on $serial ($live)"
+      prepare_device "$serial" "$mode"
+      return 0
     fi
-    log "$AVD_NAME already running on $serial ($running_mode)"
-    prepare_device "$serial" "$mode"
-    return 0
+    log "$AVD_NAME is running in '$live' mode, '$mode' was asked for — restarting it"
+    cmd_stop
   fi
 
   check_ram
@@ -178,6 +205,25 @@ cmd_stop() {
   if serial=$(serial_of_avd); then
     log "stopping $serial"
     adb -s "$serial" emu kill
+    # `emu kill` returns before the process is gone, and a restart that begins
+    # while the old one still holds its console port comes up on a second serial
+    # — or not at all. Wait it out, then insist.
+    local waited=0 pids
+    while serial_of_avd >/dev/null 2>&1 || [[ -n "$(emulator_procs)" ]]; do
+      (( waited += 1 ))
+      if (( waited > 30 )); then
+        pids=$(emulator_procs | awk '{print $1}')
+        if [[ -n "$pids" ]]; then
+          warn "still up after 30s — SIGKILL to $(tr '\n' ' ' <<<"$pids")"
+          # By pid, never by pattern: see emulator_procs.
+          xargs -r kill -9 <<<"$pids" || true
+        fi
+        sleep 2
+        break
+      fi
+      sleep 1
+    done
+    adb devices >/dev/null 2>&1   # let adb drop the offline entry
   else
     log "$AVD_NAME is not running"
   fi
@@ -212,11 +258,8 @@ cmd_test() {
     warn "no DISPLAY/WAYLAND_DISPLAY — falling back to headless"
     mode=headless
   fi
-  # An emulator that is already up keeps whatever mode it booted in: -no-window
-  # cannot be toggled on a running one.
-  if serial_of_avd >/dev/null 2>&1; then
-    mode=$(cat "$MODE_FILE" 2>/dev/null || echo "$mode")
-  fi
+  # cmd_start reuses an emulator that is already in this mode and restarts one
+  # that is in the other, so the mode asked for here is the mode the suite runs in.
   cmd_start "$mode"
 
   local serial
