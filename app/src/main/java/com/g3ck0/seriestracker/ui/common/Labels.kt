@@ -85,3 +85,6 @@ fun episodesLabel(count: Int): String =
 
 fun moviesLabel(count: Int): String =
     "$count ${plural(count, "фильм", "фильма", "фильмов")}"
+
+fun seasonsLabel(count: Int): String =
+    "$count ${plural(count, "сезон", "сезона", "сезонов")}"

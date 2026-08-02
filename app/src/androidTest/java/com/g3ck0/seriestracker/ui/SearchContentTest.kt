@@ -243,6 +243,6 @@ class SearchContentTest {
 
         // The supporting text is merged into the text field's semantics node.
         compose.onNodeWithTag(ManualAddTags.SEASONS_SUMMARY, useUnmergedTree = true)
-            .assertTextEquals("3 сезон(ов), всего 10 серий")
+            .assertTextEquals("3 сезона, всего 10 серий")
     }
 }

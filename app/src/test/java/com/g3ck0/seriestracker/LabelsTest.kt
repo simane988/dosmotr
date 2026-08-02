@@ -6,6 +6,7 @@ import com.g3ck0.seriestracker.ui.common.formatAirDate
 import com.g3ck0.seriestracker.ui.common.formatMinutes
 import com.g3ck0.seriestracker.ui.common.moviesLabel
 import com.g3ck0.seriestracker.ui.common.nextLabel
+import com.g3ck0.seriestracker.ui.common.seasonsLabel
 import com.g3ck0.seriestracker.fake.progressOf
 import com.g3ck0.seriestracker.fake.tvTitle
 import org.junit.Assert.assertEquals
@@ -49,6 +50,12 @@ class LabelsTest {
         assertEquals("3 фильма", moviesLabel(3))
         assertEquals("0 фильмов", moviesLabel(0))
         assertEquals("11 фильмов", moviesLabel(11))
+
+        assertEquals("1 сезон", seasonsLabel(1))
+        assertEquals("3 сезона", seasonsLabel(3))
+        assertEquals("0 сезонов", seasonsLabel(0))
+        assertEquals("11 сезонов", seasonsLabel(11))
+        assertEquals("31 сезон", seasonsLabel(31))
     }
 
     @Test
