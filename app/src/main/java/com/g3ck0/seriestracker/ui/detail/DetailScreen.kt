@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -43,18 +44,25 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +100,7 @@ object DetailTags {
     const val MOVIE_TOGGLE = "detail:movieToggle"
     const val NOTES = "detail:notes"
     const val NOTES_SAVE = "detail:notesSave"
+    const val NOTES_CANCEL = "detail:notesCancel"
     const val NOTES_OPEN = "detail:notesOpen"
     const val REFRESHING = "detail:refreshing"
     const val NOT_FOUND = "detail:notFound"
@@ -621,12 +630,26 @@ private fun ProgressBlock(
 }
 
 @Composable
-private fun FilledPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun FilledPill(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
     Surface(
         onClick = onClick,
+        enabled = enabled,
         shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        color = if (enabled) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        contentColor = if (enabled) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
         modifier = modifier.height(40.dp),
     ) {
         Box(Modifier.padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
@@ -655,17 +678,51 @@ private fun OutlinedPill(label: String, onClick: () -> Unit, modifier: Modifier 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
-    var open by remember(initial) { mutableStateOf(false) }
-    var text by remember(initial) { mutableStateOf(initial) }
+    // Saveable, not remembered: the block is a LazyColumn item, so scrolling it out of
+    // view (or rotating) disposes it, and a plain remember would drop a half-typed note.
+    var open by rememberSaveable(initial) { mutableStateOf(false) }
+    var text by rememberSaveable(initial) { mutableStateOf(initial) }
+    // What the database is known to hold. `initial` only catches up once the write has
+    // travelled back through Room, which is what would otherwise make an explicit save
+    // look unsaved to the flush below.
+    var committed by rememberSaveable(initial) { mutableStateOf(initial) }
 
     // The block sits at the very bottom of the overview, so with the keyboard open it
     // is below the shrunken viewport: focusing the field, and later the save row
     // appearing under it, both have to scroll the list to it.
     val bringIntoView = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
-    val edited = open && text != initial
+    val edited = open && text != committed
     LaunchedEffect(edited) {
         if (edited) bringIntoView.bringIntoView()
+    }
+
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    // Opening the block is the request to type in it, so raise the keyboard right away
+    // instead of asking for a second tap. This only fires on the open transition, so it
+    // does not fight ClearFocusWhenDialogCloses, which clears focus after a dialog.
+    LaunchedEffect(open) {
+        if (open) focusRequester.requestFocus()
+    }
+
+    // Leaving the screen with unsaved text used to lose it silently. Flush on disposal
+    // instead: cancelling puts the committed text back first, so it writes nothing then.
+    val latestText by rememberUpdatedState(text)
+    val latestCommitted by rememberUpdatedState(committed)
+    val latestOnSave by rememberUpdatedState(onSave)
+    DisposableEffect(Unit) {
+        onDispose {
+            if (latestText != latestCommitted) latestOnSave(latestText)
+        }
+    }
+
+    fun collapse() {
+        focusManager.clearFocus(force = true)
+        keyboard?.hide()
+        open = false
     }
 
     Column(
@@ -727,7 +784,10 @@ private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp)
-                            .height(60.dp)
+                            // A long note used to scroll inside three fixed lines; let the
+                            // field grow with the text and only then start scrolling.
+                            .heightIn(min = 60.dp, max = 200.dp)
+                            .focusRequester(focusRequester)
                             .onFocusChanged { focus ->
                                 if (focus.isFocused) scope.launch { bringIntoView.bringIntoView() }
                             }
@@ -735,16 +795,22 @@ private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
                     )
                 }
             }
-            if (text != initial) {
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledPill(
-                        label = "Сохранить",
-                        onClick = { onSave(text); open = false },
-                        modifier = Modifier.testTag(DetailTags.NOTES_SAVE),
-                    )
-                    DialogTextButton(label = "Отмена", onClick = { text = initial; open = false })
-                }
+            // Both buttons are always here: with «Отмена» shown only after an edit there
+            // was no way to close a field opened by mistake. «Сохранить» is disabled
+            // instead of hidden, so the row does not jump as the text changes.
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledPill(
+                    label = "Сохранить",
+                    enabled = text != committed,
+                    onClick = { onSave(text); committed = text; collapse() },
+                    modifier = Modifier.testTag(DetailTags.NOTES_SAVE),
+                )
+                DialogTextButton(
+                    label = "Отмена",
+                    onClick = { text = committed; collapse() },
+                    modifier = Modifier.testTag(DetailTags.NOTES_CANCEL),
+                )
             }
         }
     }

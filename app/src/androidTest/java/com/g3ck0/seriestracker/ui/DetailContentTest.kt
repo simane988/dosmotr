@@ -1,6 +1,12 @@
 package com.g3ck0.seriestracker.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
@@ -202,7 +208,7 @@ class DetailContentTest {
     }
 
     @Test
-    fun notesSaveAppearsOnlyAfterEditing() {
+    fun notesSaveIsEnabledOnlyAfterEditing() {
         var saved: String? = null
         compose.setThemedContent {
             DetailContent(state = seriesState(notes = "старое"), onNotes = { saved = it })
@@ -210,11 +216,71 @@ class DetailContentTest {
 
         compose.onNodeWithTag(DetailTags.NOTES).assertDoesNotExist()
         compose.onNodeWithTag(DetailTags.NOTES_OPEN).performClick()
-        compose.onNodeWithTag(DetailTags.NOTES_SAVE).assertDoesNotExist()
+        compose.onNodeWithTag(DetailTags.NOTES_SAVE).assertIsNotEnabled()
         compose.onNodeWithTag(DetailTags.NOTES).performTextReplacement("новое")
-        compose.onNodeWithTag(DetailTags.NOTES_SAVE).performClick()
+        compose.onNodeWithTag(DetailTags.NOTES_SAVE).assertIsEnabled().performClick()
 
         assertEquals("новое", saved)
+    }
+
+    /** feature-5: the field used to need a second tap before the keyboard appeared. */
+    @Test
+    fun notesFieldTakesFocusWhenOpened() {
+        compose.setThemedContent { DetailContent(state = seriesState(notes = "старое")) }
+
+        compose.onNodeWithTag(DetailTags.NOTES_OPEN).performClick()
+
+        compose.onNodeWithTag(DetailTags.NOTES).assertIsFocused()
+    }
+
+    /** feature-5: an untouched field could not be closed — only «Сохранить» could close it. */
+    @Test
+    fun notesCancelClosesAnUntouchedField() {
+        var saved: String? = null
+        compose.setThemedContent {
+            DetailContent(state = seriesState(notes = "старое"), onNotes = { saved = it })
+        }
+
+        compose.onNodeWithTag(DetailTags.NOTES_OPEN).performClick()
+        compose.onNodeWithTag(DetailTags.NOTES_CANCEL).performClick()
+
+        compose.onNodeWithTag(DetailTags.NOTES).assertDoesNotExist()
+        compose.onNodeWithTag(DetailTags.NOTES_OPEN).assertIsDisplayed()
+        assertEquals(null, saved)
+    }
+
+    @Test
+    fun notesCancelDropsTheEditWithoutSaving() {
+        var saved: String? = null
+        compose.setThemedContent {
+            DetailContent(state = seriesState(notes = "старое"), onNotes = { saved = it })
+        }
+
+        compose.onNodeWithTag(DetailTags.NOTES_OPEN).performClick()
+        compose.onNodeWithTag(DetailTags.NOTES).performTextReplacement("черновик")
+        compose.onNodeWithTag(DetailTags.NOTES_CANCEL).performClick()
+
+        assertEquals(null, saved)
+        compose.onNodeWithText("Заметка: старое").assertIsDisplayed()
+    }
+
+    /** feature-5: leaving the screen mid-edit used to drop the text silently. */
+    @Test
+    fun notesAreFlushedWhenTheScreenGoesAway() {
+        var saved: String? = null
+        var visible by mutableStateOf(true)
+        compose.setThemedContent {
+            if (visible) {
+                DetailContent(state = seriesState(notes = "старое"), onNotes = { saved = it })
+            }
+        }
+
+        compose.onNodeWithTag(DetailTags.NOTES_OPEN).performClick()
+        compose.onNodeWithTag(DetailTags.NOTES).performTextReplacement("недописанное")
+        compose.runOnIdle { visible = false }
+        compose.waitForIdle()
+
+        assertEquals("недописанное", saved)
     }
 
     @Test
