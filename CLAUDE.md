@@ -316,6 +316,7 @@ scripts/grind.sh --task bug-4    # start here, then carry on picking
 scripts/grind.sh --once          # one task, then stop
 scripts/grind.sh --no-review     # straight to merge, no review rounds
 scripts/grind.sh --rounds 5      # more review rounds before it gives up
+scripts/grind.sh --model-complex opus --model-simple sonnet --model-review sonnet
 ```
 
 **Run it from a terminal yourself, not from inside a session** — each task is a real
@@ -343,9 +344,17 @@ and state the assumption — a question there just ends the turn with the task u
 which the phase-1 check then reports as "opened no PR".
 
 - **Picking** is one tool-less `claude -p` call per iteration, fed the open ids and
-  `todo/README.md`, answering with a single id. It reruns before every task so the choice
-  accounts for what the last one changed. An unusable answer falls back to backlog order,
-  bugs first.
+  `todo/README.md`, answering `<id> <simple|complex>`. It reruns before every task so the
+  choice accounts for what the last one changed. An unusable answer falls back to backlog
+  order, bugs first.
+- **The model is per job, not per run.** The picker and every reviewer are Sonnet; the
+  author session is Sonnet on a `simple` task and Opus on a `complex` one — the size comes
+  from the same call that picks the task, so sizing costs nothing extra. Anything
+  unparseable, and `--task <id>`, count as `complex`: paying for Opus on a small fix is
+  cheaper than a schema migration written by the wrong model. The choice is written to
+  `todo/.grind/<task>.model` so a resume after a usage limit continues the conversation on
+  the model it started on. `--model` forces the author sessions only — **review is Sonnet
+  either way**, deliberately, since it reads a diff against a checklist.
 - **Review is a separate session, deliberately.** The author session ends its turn at
   `close-task.sh <task> --pr-only` — PR opened, nothing merged. A fresh `claude -p`
   reviewer then reads `git diff origin/develop...HEAD` against the task spec and
@@ -356,9 +365,13 @@ which the phase-1 check then reports as "opened no PR".
   the previous round's report to check each point was addressed. Merge is armed only
   after an approve. Three rounds by default, then it asks (`--rounds N` to raise it);
   under `--yes` it gives up and leaves the PR open rather than merging unreviewed work.
-  A reviewer reply with no `VERDICT:` line counts as approve — the alternative is a loop
-  that never ends on a malformed answer. Reports are kept as
-  `todo/.grind/<task>.review.<n>.md`.
+  **A reply with no `VERDICT:` line is a failed round, never an approval.** It used to
+  count as approve, and that is exactly how PR #14 and PR #23 merged unreviewed: the
+  reviewer had hit a usage limit and answered `You've hit your session limit`, which is
+  neither empty (so the empty-report guard missed it) nor a verdict. Such a round is
+  retried rather than counted — under `--yes`, five times at 15-minute intervals, then the
+  PR is left open. Reports are kept as `todo/.grind/<task>.review.<n>.md` and the file is
+  deleted before each round, so a stale report cannot be read as this round's answer.
 - **Nothing is lost at a usage limit.** Each task gets a fixed `--session-id`, stored in
   `todo/.grind/<task>.session`. When a session ends without the task reaching
   `todo/done/` — limit, Ctrl-C, anything — the script offers resume / wait an hour and
