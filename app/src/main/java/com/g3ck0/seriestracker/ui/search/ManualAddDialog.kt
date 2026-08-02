@@ -28,7 +28,9 @@ import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.ui.common.DesignChip
 import com.g3ck0.seriestracker.ui.common.DesignDialog
 import com.g3ck0.seriestracker.ui.common.DialogTextButton
+import com.g3ck0.seriestracker.ui.common.episodesLabel
 import com.g3ck0.seriestracker.ui.common.label
+import com.g3ck0.seriestracker.ui.common.seasonsLabel
 
 object ManualAddTags {
     const val NAME = "manual:name"
@@ -92,7 +94,8 @@ fun ManualAddDialog(
                             text = if (episodesPerSeason.isEmpty()) {
                                 "Например: 12, 10, 8"
                             } else {
-                                "${episodesPerSeason.size} сезон(ов), всего ${episodesPerSeason.sum()} серий"
+                                "${seasonsLabel(episodesPerSeason.size)}, всего " +
+                                    episodesLabel(episodesPerSeason.sum())
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
