@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -20,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.g3ck0.seriestracker.data.local.WatchStats
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.ui.FloatingNavClearance
+import com.g3ck0.seriestracker.ui.common.ProgressBar
 import com.g3ck0.seriestracker.ui.common.episodesLabel
 import com.g3ck0.seriestracker.ui.common.formatMinutes
 import com.g3ck0.seriestracker.ui.common.label
@@ -131,10 +130,10 @@ fun StatsContent(stats: WatchStats) {
                         )
                     }
                     Spacer(Modifier.height(6.dp))
-                    LinearProgressIndicator(
+                    ProgressBar(
                         progress = { count.toFloat() / total },
-                        strokeCap = StrokeCap.Round,
-                        modifier = Modifier.fillMaxWidth().height(4.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        height = 4.dp,
                     )
                 }
             }

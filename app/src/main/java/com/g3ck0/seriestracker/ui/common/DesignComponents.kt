@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -22,9 +23,51 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+/**
+ * Track colour for every progress bar in the app.
+ *
+ * Material3's default is `secondaryContainer`, which on a dynamic (Material You) palette
+ * is a mid-tone: against `primary` it drops to ~2.1:1, below the 3:1 WCAG 1.4.11 asks for
+ * non-text UI, while contrasting strongly with the card behind it — so an empty bar reads
+ * as a full one. `surfaceVariant` sits next to the card surface in both schemes instead,
+ * which keeps the filled part the only thing the eye picks up.
+ */
+private val progressTrackColor: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceVariant
+
+/**
+ * Determinate progress bar. Wraps `LinearProgressIndicator` only to pin the track colour,
+ * so the three screens that show progress cannot drift apart again.
+ */
+@Composable
+fun ProgressBar(
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+    height: Dp = 6.dp,
+) {
+    LinearProgressIndicator(
+        progress = progress,
+        strokeCap = StrokeCap.Round,
+        trackColor = progressTrackColor,
+        modifier = modifier.height(height),
+    )
+}
+
+/** Indeterminate counterpart, for the search and refresh bars. */
+@Composable
+fun IndeterminateProgressBar(modifier: Modifier = Modifier, height: Dp = 4.dp) {
+    LinearProgressIndicator(
+        trackColor = progressTrackColor,
+        modifier = modifier.height(height),
+    )
+}
 
 /** Extended FAB from the mock: 56dp tall pill on primaryContainer, icon plus label. */
 @Composable
