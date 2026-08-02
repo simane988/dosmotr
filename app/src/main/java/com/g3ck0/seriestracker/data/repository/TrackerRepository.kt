@@ -75,7 +75,7 @@ class TrackerRepository @Inject constructor(
     // --- adding ---
 
     /** Saves the title immediately, then pulls details/episodes so the UI never waits on the network. */
-    suspend fun add(item: SearchItem, status: WatchStatus = WatchStatus.WATCHING): Result<String> =
+    suspend fun add(item: SearchItem, status: WatchStatus = WatchStatus.PLANNED): Result<String> =
         runCatching {
             val id = item.id
             dao.upsertTitle(
@@ -103,7 +103,7 @@ class TrackerRepository @Inject constructor(
         episodesPerSeason: List<Int>,
         runtimeMinutes: Int,
         year: String?,
-        status: WatchStatus = WatchStatus.WATCHING,
+        status: WatchStatus = WatchStatus.PLANNED,
     ): String {
         val id = "local_${UUID.randomUUID()}"
         dao.upsertTitle(
