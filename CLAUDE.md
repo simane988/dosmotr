@@ -28,8 +28,9 @@ export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH
   -Pandroid.testInstrumentationRunnerArguments.class=com.g3ck0.seriestracker.ui.StatsContentTest
 
 scripts/emulator.sh gui          # local AVD in a window — the fast path, see below
-scripts/emulator.sh test         # start it on the GPU, then run the suite pinned to it
+scripts/emulator.sh test         # start on the GPU, run the suite, shut it down again
 scripts/emulator.sh test --headless   # the swiftshader path CI uses, for reproducing it
+scripts/emulator.sh test --keep       # leave it up afterwards
 
 ./gradlew :app:lintDebug         # what CI's `static` job fails on
 ./gradlew detekt                 # applied at the root, covers app/src entirely
@@ -95,6 +96,11 @@ Two things the script exists to get right:
   connected device, so a phone plugged in beside the emulator runs the whole suite twice.
 - **It applies what CI's `disable-animations: true` applies** — all three animation
   scales — plus the `KEYCODE_WAKEUP` above, on every start.
+
+**`test` puts back what it found.** An emulator it started is stopped once the suite ends,
+however it ends — failed tests, Ctrl-C — because 2.3G held for the rest of the day is 2.3G
+Gradle does not get on an 8G machine. One that was already up in the mode asked for is
+left alone: it is not this run's to close. `--keep` opts out.
 
 `-no-window` is fixed at launch, so **the mode you ask for is the mode you get**: asking
 for the one the emulator is already in reuses it, asking for the other stops it and boots
