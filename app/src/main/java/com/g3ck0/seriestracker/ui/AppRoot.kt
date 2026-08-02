@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -115,10 +116,16 @@ fun AppRoot() {
 
     // Painted behind the NavHost: during a transition both screens are partly
     // transparent, and without this the window background (white) shows through.
+    //
+    // imePadding() is applied once here rather than per screen: the activity is
+    // edge-to-edge, so without it the system pans the whole window up and the top
+    // bar leaves the screen while the keyboard is open. Padding the root shrinks
+    // the content instead, and consumes the inset for everything below.
     Box(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
+            .imePadding()
     ) {
         NavHost(
             navController = navController,

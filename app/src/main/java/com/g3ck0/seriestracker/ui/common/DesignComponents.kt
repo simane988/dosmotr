@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -54,7 +55,9 @@ fun ExtendedActionButton(
 
 /**
  * Snackbar sits above the floating navigation pill rather than at the screen edge,
- * otherwise the bar covers it.
+ * otherwise the bar covers it. It also clears the keyboard: AppRoot already consumes
+ * the IME inset, but a screen shown outside it (tests, previews) would otherwise draw
+ * the snackbar underneath an open keyboard.
  */
 @Composable
 fun SnackbarOverlay(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
@@ -62,6 +65,7 @@ fun SnackbarOverlay(hostState: SnackbarHostState, modifier: Modifier = Modifier)
         hostState = hostState,
         modifier = modifier
             .navigationBarsPadding()
+            .imePadding()
             .padding(start = 16.dp, end = 16.dp, bottom = 104.dp),
     ) { data ->
         Snackbar(
