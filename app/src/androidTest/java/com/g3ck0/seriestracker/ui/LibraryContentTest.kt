@@ -1,14 +1,19 @@
 package com.g3ck0.seriestracker.ui
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onRoot
 import com.g3ck0.seriestracker.ui.about.AboutTags
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.TitleEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
@@ -414,4 +419,39 @@ class LibraryContentTest {
         compose.onNodeWithText("Dark").assertIsDisplayed()
         compose.onNodeWithText("Fight Club").assertIsDisplayed()
     }
+
+    /**
+     * bug-6: with room beside the pill (landscape, 914 dp wide) the FAB drops to the
+     * bottom edge instead of hovering a pill's height up, where it covered the buttons
+     * of the first card.
+     */
+    @Test
+    fun theFabDropsToTheBottomEdgeWhenThePillLeavesRoomBesideIt() {
+        showLibraryWith(FloatingNavMetrics(space = 104.dp, freeWidth = 598.dp))
+
+        val gap = fabBottomGap()
+        assertTrue("FAB sits $gap above the bottom edge", gap < 48.dp)
+    }
+
+    /** Portrait: the pill spans the width, so the FAB has to clear it vertically. */
+    @Test
+    fun theFabIsLiftedOverThePillWhenNothingFitsBesideIt() {
+        showLibraryWith(FloatingNavMetrics(space = 104.dp, freeWidth = 95.dp))
+
+        val gap = fabBottomGap()
+        assertTrue("FAB sits $gap above the bottom edge", gap >= 104.dp)
+    }
+
+    private fun showLibraryWith(metrics: FloatingNavMetrics) {
+        compose.setThemedContent {
+            CompositionLocalProvider(LocalFloatingNav provides metrics) {
+                LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
+            }
+        }
+    }
+
+    /** Distance from the bottom of the FAB to the bottom of the screen. */
+    private fun fabBottomGap(): Dp =
+        compose.onRoot().getBoundsInRoot().bottom -
+            compose.onNodeWithTag(LibraryTags.FAB).getBoundsInRoot().bottom
 }

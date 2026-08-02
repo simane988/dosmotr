@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +30,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.g3ck0.seriestracker.ui.FloatingNavClearance
 
 /**
  * Track colour for every progress bar in the app.
@@ -104,18 +104,18 @@ object SnackbarTags {
 
 /**
  * Snackbar sits above the floating navigation pill rather than at the screen edge,
- * otherwise the bar covers it. It also clears the keyboard: AppRoot already consumes
- * the IME inset, but a screen shown outside it (tests, previews) would otherwise draw
- * the snackbar underneath an open keyboard.
+ * otherwise the bar covers it. The clearance is the measured one, system bars included,
+ * so a second navigationBarsPadding() here would count that inset twice. It also clears
+ * the keyboard: AppRoot already consumes the IME inset, but a screen shown outside it
+ * (tests, previews) would otherwise draw the snackbar underneath an open keyboard.
  */
 @Composable
 fun SnackbarOverlay(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
     SnackbarHost(
         hostState = hostState,
         modifier = modifier
-            .navigationBarsPadding()
             .imePadding()
-            .padding(start = 16.dp, end = 16.dp, bottom = 104.dp),
+            .padding(start = 16.dp, end = 16.dp, bottom = FloatingNavClearance),
     ) { data ->
         val actionLabel = data.visuals.actionLabel
         Snackbar(
