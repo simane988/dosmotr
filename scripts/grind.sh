@@ -7,6 +7,12 @@
 #   scripts/grind.sh --once       # do exactly one task and stop
 #   scripts/grind.sh --no-review  # skip the review rounds, merge straight away
 #   scripts/grind.sh --rounds 5   # allow more review rounds before asking
+#   scripts/grind.sh --model-complex opus --model-simple sonnet
+#
+# Models are per job. The picker sizes each task simple/complex and the author
+# session runs on the matching model; reviews are always Sonnet — reading a diff
+# against a checklist does not need more, and the backlog is long. --model
+# overrides the author session only.
 #
 # Each task gets its own session in THIS terminal, printed live — thinking, tool
 # calls and results, as they happen. The sessions are non-interactive on purpose:
@@ -34,9 +40,19 @@ START_TASK=""
 # arm auto-merge on their own, so they run unattended by design; --mode auto is
 # the middle ground if you want the risky calls to still stop and ask.
 MODE="bypassPermissions"
-MODEL=""
 REVIEW=1
 MAX_ROUNDS=3
+
+# Model per job, not one model for everything: the author of a fiddly change is
+# the only session worth Opus tokens. Picking a task is one short answer, and a
+# review is reading a diff against a checklist — Sonnet does both, at a fraction
+# of the cost of a backlog worked end to end on Opus.
+MODEL_SIMPLE="sonnet"
+MODEL_COMPLEX="opus"
+MODEL_REVIEW="sonnet"
+MODEL_PICK="sonnet"
+MODEL=""            # --model: forces every author session, review excluded
+AUTHOR_MODEL="$MODEL_COMPLEX"   # what run_task settled on for the task in hand
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -47,6 +63,9 @@ while [ $# -gt 0 ]; do
         --rounds) MAX_ROUNDS="$2"; shift 2 ;;
         --mode) MODE="$2"; shift 2 ;;
         --model) MODEL="$2"; shift 2 ;;
+        --model-simple) MODEL_SIMPLE="$2"; shift 2 ;;
+        --model-complex) MODEL_COMPLEX="$2"; shift 2 ;;
+        --model-review) MODEL_REVIEW="$2"; shift 2 ;;
         -h|--help) sed -n '2,/^set -/{/^set -/!p}' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
@@ -69,18 +88,24 @@ open_tasks() {
 # scripts/claude-stream.py keeps what an interactive session shows: thinking, tool
 # calls, results. The pipeline is deliberately non-fatal — a session that dies (a
 # usage limit above all) is handled by the phase checks, not by killing the loop.
-#   claude_run [--text-out FILE] <prompt> [claude flags...]
+#   claude_run [--text-out FILE] [--model NAME] <prompt> [claude flags...]
 #
 # The prompt goes in on stdin, never as a trailing argument: `--tools` takes a
 # variadic list, so anything after it is read as one more tool name — including
 # the prompt, which then leaves claude exiting with "Input must be provided
 # either through stdin or as a prompt argument when using --print".
 claude_run() {
-    local text_out=""
-    if [ "$1" = "--text-out" ]; then text_out="$2"; shift 2; fi
+    local text_out="" model=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --text-out) text_out="$2"; shift 2 ;;
+            --model) model="$2"; shift 2 ;;
+            *) break ;;
+        esac
+    done
     local prompt="$1"; shift
     local model_flag=() render=(python3 scripts/claude-stream.py)
-    [ -n "$MODEL" ] && model_flag=(--model "$MODEL")
+    [ -n "$model" ] && model_flag=(--model "$model")
     [ -n "$text_out" ] && render+=(--text-out "$text_out")
     set +e
     printf '%s' "$prompt" \
@@ -91,7 +116,10 @@ claude_run() {
     return 0
 }
 
-# Resume the author's conversation, optionally seeding it with a message.
+# Resume the author's conversation, optionally seeding it with a message. The
+# model is whatever run_task chose for this task ($AUTHOR_MODEL, remembered in
+# $STATE_DIR/<task>.model), so a resume after a usage limit does not silently
+# continue an Opus conversation on Sonnet or the other way round.
 author_resume() {
     local sid="$1"
     shift
@@ -100,7 +128,7 @@ author_resume() {
         # all, so ask it to carry on from where it stopped.
         set -- "Continue where you left off and finish the task."
     fi
-    claude_run "$1" --resume "$sid"
+    claude_run --model "$AUTHOR_MODEL" "$1" --resume "$sid"
 }
 
 # The PR the author opened for whatever branch it is sitting on.
@@ -121,9 +149,11 @@ task_path() {
 }
 
 # --- pick the next task -------------------------------------------------------
-# Claude reads the backlog and names one id. No tools, no edits: this is a
-# one-shot text call, cheap enough to run before every task so the choice
-# reflects what the previous task already changed.
+# Claude reads the backlog and names one id plus how hard it is. No tools, no
+# edits: this is a one-shot text call, cheap enough to run before every task so
+# the choice reflects what the previous task already changed. It answers
+# "<id> <simple|complex>" — the second word decides which model writes the code,
+# which is why the pick and the sizing are one call and not two.
 pick_task() {
     local list picked
     list="$(open_tasks)"
@@ -140,9 +170,17 @@ pick_task() {
             echo "Pick the SINGLE most valuable task to do next. Weigh: user-visible"
             echo "damage (data corruption and unreachable actions first), how many"
             echo "users hit it, and cost to fix. Prefer a cheap high-impact fix over"
-            echo "an expensive one. Answer with the id ALONE, nothing else."
-        } | timeout 120 claude -p --tools "" ${MODEL:+--model "$MODEL"} 2>/dev/null \
-          | head -c 200 | tr -d '[:space:]`'
+            echo "an expensive one."
+            echo
+            echo "Then size it: 'simple' if it is a contained change — one or two"
+            echo "files, a wording or layout fix, an obvious null/edge case, no"
+            echo "schema and no new screen. 'complex' if it touches the database,"
+            echo "the repository or sync logic, spans several layers, needs a"
+            echo "design decision, or the spec is vague. When in doubt: complex."
+            echo
+            echo "Answer with exactly two words: <id> <simple|complex>. Nothing else."
+        } | timeout 120 claude -p --tools "" --model "$MODEL_PICK" 2>/dev/null \
+          | head -c 200 | tr -d '`' | tr '\n' ' '
         # `head` bounds what the command substitution can buffer — without it a
         # producer that never stops is read into memory until the OOM killer
         # takes the script (and whatever else is running) out. `head` closing
@@ -151,14 +189,18 @@ pick_task() {
         # bounded AND non-fatal. The fallback below handles the empty result.
         true
     )"
-    picked="${picked:0:64}"
-    if [ -n "$picked" ] && task_path "$picked" >/dev/null; then
-        echo "$picked"
+    picked="${picked:0:96}"
+    local id size
+    id="$(printf '%s' "$picked" | awk '{print $1}')"
+    size="$(printf '%s' "$picked" | awk '{print tolower($2)}')"
+    case "$size" in simple|complex) ;; *) size="" ;; esac
+    if [ -n "$id" ] && task_path "$id" >/dev/null; then
+        echo "$id ${size:-complex}"
         return 0
     fi
     # Picker unavailable or hallucinated an id: fall back to backlog order,
-    # bugs before features.
-    echo "$list" | head -1
+    # bugs before features, and to the careful model.
+    echo "$(echo "$list" | head -1) complex"
 }
 
 # --- the prompt each working session starts with ------------------------------
@@ -207,7 +249,8 @@ EOF
 # fixes. Output is printed live and captured; the last VERDICT line decides.
 review_round() {
     local task="$1" round="$2" out="$3"
-    claude_run --text-out "$out" \
+    rm -f "$out"        # a stale report from an earlier round must not be read as this one's
+    claude_run --text-out "$out" --model "$MODEL_REVIEW" \
         "You are reviewing a pull request in this repository, review round $round.
 
 The branch is \`$(git rev-parse --abbrev-ref HEAD)\`; the diff under review is
@@ -244,21 +287,36 @@ verdict_of() {
 # is one long conversation across all of it — review feedback is resumed into
 # it, so it never re-reads its own diff from cold.
 run_task() {
-    local task="$1" path sid prompt
+    local task="$1" size="${2:-complex}" path sid prompt
     # Skip a bad id rather than killing the loop with it.
     path="$(task_path "$task")" || { echo "grind: no todo/{bugs,features}/$task.md"; return 1; }
+
+    # Which model writes the code. --model forces it; otherwise the size the
+    # picker gave decides. Remembered per task so a resume — days later, after a
+    # usage limit — continues on the model the conversation was started on.
+    local model_file="$STATE_DIR/$task.model"
+    if [ -n "$MODEL" ]; then
+        AUTHOR_MODEL="$MODEL"
+    elif [ -s "$model_file" ]; then
+        AUTHOR_MODEL="$(cat "$model_file")"
+    elif [ "$size" = simple ]; then
+        AUTHOR_MODEL="$MODEL_SIMPLE"
+    else
+        AUTHOR_MODEL="$MODEL_COMPLEX"
+    fi
+    echo "$AUTHOR_MODEL" > "$model_file"
 
     local sid_file="$STATE_DIR/$task.session"
     if [ -f "$sid_file" ]; then
         sid="$(cat "$sid_file")"
-        echo "grind: resuming session $sid for $task"
+        echo "grind: resuming session $sid for $task [$AUTHOR_MODEL]"
         author_resume "$sid"
     else
         sid="$(python3 -c 'import uuid; print(uuid.uuid4())')"
         echo "$sid" > "$sid_file"
         prompt="$(build_prompt "$task" "$path")"
-        echo "grind: starting session $sid for $task"
-        claude_run "$prompt" --session-id "$sid"
+        echo "grind: starting session $sid for $task [$size → $AUTHOR_MODEL]"
+        claude_run --model "$AUTHOR_MODEL" "$prompt" --session-id "$sid"
     fi
 
     # Phase 1 — a PR has to exist before there is anything to review.
@@ -294,7 +352,7 @@ run_task() {
 
     # Phase 2 — review rounds against that PR.
     if [ "$REVIEW" -eq 1 ]; then
-        local round=1 review verdict
+        local round=1 review verdict failed=0
         while :; do
             review="$STATE_DIR/$task.review.$round.md"
             [ "$round" -gt 1 ] && cp "$STATE_DIR/$task.review.$((round - 1)).md" "$review.prev"
@@ -302,22 +360,44 @@ run_task() {
             echo "grind: review round $round on $(pr_url)"
             review_round "$task" "$round" "$review"
 
-            # An empty report means the reviewer never ran (a usage limit, a bad
-            # invocation) — that is a failure, not an approval. Merging on it
-            # would land unreviewed work, so the PR is left open instead.
-            if [ ! -s "$review" ]; then
-                echo "grind: the reviewer produced nothing — PR left open, not merging"
-                return 1
-            fi
+            # No VERDICT line means the reviewer never actually reviewed: a usage
+            # limit ("You've hit your session limit"), a crash, a bad invocation.
+            # That is a failed round, NEVER an approval — treating it as one is
+            # how unreviewed work merged twice already. So the round is retried
+            # rather than counted, and if it cannot be made to run, the PR is
+            # left open.
             verdict="$(verdict_of "$review")"
+            if [ -z "$verdict" ]; then
+                if [ -s "$review" ]; then
+                    echo "grind: the reviewer answered without a VERDICT line (see $review):"
+                    head -c 400 "$review" | sed 's/^/  | /'
+                    echo
+                else
+                    echo "grind: the reviewer produced nothing (see $review)"
+                fi
+                failed=$((failed + 1))
+                if [ "$ASK" -eq 0 ]; then
+                    if [ "$failed" -gt 5 ]; then
+                        echo "grind: 5 failed review attempts — PR left open, NOT merged"
+                        return 1
+                    fi
+                    echo "grind: --yes, waiting 15 min then retrying round $round (attempt $failed)"
+                    sleep 900
+                    continue
+                fi
+                printf "  [r]etry now  [w]ait 1h then retry  [s]kip, leave the PR open > "
+                read -r answer </dev/tty
+                case "$answer" in
+                    r|R|"") continue ;;
+                    w|W) sleep 3600; continue ;;
+                    *) echo "grind: PR left open, NOT merged"; return 1 ;;
+                esac
+            fi
+            failed=0
 
             case "$verdict" in
                 APPROVE) echo "grind: review passed on round $round"; break ;;
                 REQUEST_CHANGES) ;;
-                *)
-                    echo "grind: reviewer gave no verdict (see $review) — treating as approved"
-                    break
-                    ;;
             esac
 
             if [ "$round" -ge "$MAX_ROUNDS" ]; then
@@ -375,11 +455,14 @@ while :; do
     done
     [ -n "${REMAINING# }" ] || { echo "grind: nothing left to do (${SKIPPED# } skipped)"; exit 0; }
 
+    # --task names an id but says nothing about its size, so it gets the careful
+    # model; the picker sizes the ones it chooses itself.
     if [ -n "$START_TASK" ]; then
-        TASK="$START_TASK"; START_TASK=""
+        TASK="$START_TASK"; START_TASK=""; SIZE="complex"
     else
-        TASK="$(pick_task)"
-        case "$SKIPPED" in *" $TASK "*) TASK="$(printf '%s' "$REMAINING" | awk '{print $1}')" ;; esac
+        PICKED="$(pick_task)"
+        TASK="${PICKED%% *}"; SIZE="${PICKED##* }"
+        case "$SKIPPED" in *" $TASK "*) TASK="$(printf '%s' "$REMAINING" | awk '{print $1}')"; SIZE="complex" ;; esac
     fi
 
     # A typo in --task or in the [o]ther prompt must cost a re-ask, not the run.
@@ -392,7 +475,7 @@ while :; do
 
     echo
     echo "======================================================================"
-    echo "grind: next up — $TASK    ($(open_tasks | wc -l) open)"
+    echo "grind: next up — $TASK    ($(open_tasks | wc -l) open, sized $SIZE)"
     sed -n '1p' "$TASK_FILE"
     echo "======================================================================"
 
@@ -408,7 +491,7 @@ while :; do
         esac
     fi
 
-    run_task "$TASK" || SKIPPED="$SKIPPED $TASK"
+    run_task "$TASK" "$SIZE" || SKIPPED="$SKIPPED $TASK"
 
     [ "$ONCE" -eq 1 ] && { echo "grind: --once, stopping"; exit 0; }
 done
