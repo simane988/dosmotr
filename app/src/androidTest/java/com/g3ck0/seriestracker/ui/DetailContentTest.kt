@@ -1,10 +1,12 @@
 package com.g3ck0.seriestracker.ui
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -99,6 +101,30 @@ class DetailContentTest {
         compose.onNodeWithText("Сериал · 2022").assertIsDisplayed()
         compose.onNodeWithText("8.3").assertIsDisplayed()
         compose.onNodeWithText("~45 мин/серия").assertIsDisplayed()
+    }
+
+    /** The backend sends "2020-01-01"; nobody writes a date that way in Russian. */
+    @Test
+    fun airDatesAreShownInRussian() {
+        compose.setThemedContent { DetailContent(state = seriesState()) }
+        openEpisodesTab()
+
+        // Every episode of the fixture season carries the same date.
+        compose.onAllNodesWithText("1 января 2020")[0].assertIsDisplayed()
+        compose.onAllNodesWithText("2020-01-01").assertCountEquals(0)
+    }
+
+    /** A date the backend cannot supply properly is dropped, not shown as "Invalid date". */
+    @Test
+    fun brokenAirDatesAreNotShown() {
+        val broken = episodes(1, 1).map { it.copy(airDate = "не дата") }
+        compose.setThemedContent {
+            DetailContent(state = seriesState(seasons = listOf(Season(1, broken))))
+        }
+        openEpisodesTab()
+
+        compose.onNodeWithText("не дата").assertDoesNotExist()
+        compose.onNodeWithTag(DetailTags.episode(1, 1)).assertIsDisplayed()
     }
 
     @Test

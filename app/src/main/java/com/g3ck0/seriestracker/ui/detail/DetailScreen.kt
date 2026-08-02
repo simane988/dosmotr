@@ -76,6 +76,7 @@ import com.g3ck0.seriestracker.ui.common.Poster
 import com.g3ck0.seriestracker.ui.common.ProgressBar
 import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
 import com.g3ck0.seriestracker.ui.common.episodeCode
+import com.g3ck0.seriestracker.ui.common.formatAirDate
 import com.g3ck0.seriestracker.ui.common.formatMinutes
 import com.g3ck0.seriestracker.ui.common.label
 import kotlinx.coroutines.launch
@@ -844,7 +845,7 @@ private fun EpisodeRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                episode.airDate?.takeIf { it.isNotBlank() }?.let {
+                episode.airDate?.let(::formatAirDate)?.takeIf { it.isNotBlank() }?.let {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.bodySmall,
