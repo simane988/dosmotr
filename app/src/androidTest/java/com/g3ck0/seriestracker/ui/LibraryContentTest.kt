@@ -10,7 +10,6 @@ import com.g3ck0.seriestracker.ui.about.AboutTags
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -188,7 +187,6 @@ class LibraryContentTest {
         }
 
         compose.onNodeWithTag(LibraryTags.statusChip(WatchStatus.COMPLETED))
-            .performScrollTo()
             .performClick()
 
         assertEquals(WatchStatus.COMPLETED, selected)
@@ -209,7 +207,6 @@ class LibraryContentTest {
         }
 
         compose.onNodeWithTag(LibraryTags.statusChip(WatchStatus.COMPLETED))
-            .performScrollTo()
             .performClick()
 
         assertEquals(null, selected)
@@ -226,10 +223,22 @@ class LibraryContentTest {
         }
 
         compose.onNodeWithTag(LibraryTags.mediaChip(MediaType.MOVIE))
-            .performScrollTo()
             .performClick()
 
         assertEquals(MediaType.MOVIE, selected)
+    }
+
+    /**
+     * Eight chips do not fit on one row, so they wrap: the last of them has to be on
+     * screen straight away rather than hidden past the right edge.
+     */
+    @Test
+    fun theLastFilterChipIsVisibleWithoutScrollingSideways() {
+        compose.setThemedContent {
+            LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
+        }
+
+        compose.onNodeWithTag(LibraryTags.mediaChip(MediaType.MOVIE)).assertIsDisplayed()
     }
 
     @Test

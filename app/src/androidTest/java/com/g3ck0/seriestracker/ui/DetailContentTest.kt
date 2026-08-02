@@ -179,6 +179,17 @@ class DetailContentTest {
         assertEquals(WatchStatus.ON_HOLD, status)
     }
 
+    /**
+     * The status is usually derived rather than tapped, so the last chip has to be on
+     * screen without anyone swiping the row sideways first.
+     */
+    @Test
+    fun theLastStatusChipIsVisibleWithoutScrollingSideways() {
+        compose.setThemedContent { DetailContent(state = seriesState(status = WatchStatus.DROPPED)) }
+
+        compose.onNodeWithTag(DetailTags.statusChip(WatchStatus.DROPPED)).assertIsDisplayed()
+    }
+
     @Test
     fun ratingReportsTheValue() {
         var rating: Int? = -1
