@@ -271,7 +271,10 @@ class LibraryContentTest {
         }
 
         compose.onNodeWithTag(LibraryTags.FILTER_QUERY).assertDoesNotExist()
-        compose.onNodeWithTag(LibraryTags.CHIP_ALL).assertDoesNotExist()
+        compose.onNodeWithTag(LibraryTags.statusChip(WatchStatus.WATCHING)).assertDoesNotExist()
+        compose.onNodeWithTag(LibraryTags.CHIP_TYPE).assertDoesNotExist()
+        // The menu shares the filter's row, and import is what an empty library needs.
+        compose.onNodeWithTag(LibraryTags.TOP_MENU).assertIsDisplayed()
 
         compose.onNodeWithTag(LibraryTags.EMPTY_SEARCH).assertIsDisplayed().performClick()
         assertTrue(searched)
@@ -290,7 +293,7 @@ class LibraryContentTest {
 
         compose.onNodeWithText("Ничего не найдено по фильтрам").assertIsDisplayed()
         compose.onNodeWithTag(LibraryTags.FILTER_QUERY).assertIsDisplayed()
-        compose.onNodeWithTag(LibraryTags.CHIP_ALL).assertIsDisplayed()
+        compose.onNodeWithTag(LibraryTags.statusChip(WatchStatus.WATCHING)).assertIsDisplayed()
         compose.onNodeWithTag(LibraryTags.EMPTY_SEARCH).assertDoesNotExist()
     }
 
@@ -345,8 +348,12 @@ class LibraryContentTest {
         assertEquals(null, selected)
     }
 
+    /**
+     * feature-12: two media chips became one that cycles, so each tap has to report the
+     * next type in the ring rather than the one on the chip.
+     */
     @Test
-    fun mediaChipReportsSelection() {
+    fun theTypeChipCyclesThroughTheMediaTypes() {
         var selected: MediaType? = null
         compose.setThemedContent {
             LibraryContent(
@@ -355,15 +362,31 @@ class LibraryContentTest {
             )
         }
 
-        compose.onNodeWithTag(LibraryTags.mediaChip(MediaType.MOVIE))
-            .performClick()
+        compose.onNodeWithTag(LibraryTags.CHIP_TYPE).performClick()
+        assertEquals(MediaType.TV, selected)
+    }
 
-        assertEquals(MediaType.MOVIE, selected)
+    @Test
+    fun theTypeChipClearsItselfOnTheThirdTap() {
+        var selected: MediaType? = MediaType.MOVIE
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(
+                    loading = false,
+                    items = listOf(series()),
+                    filters = LibraryFilters(mediaType = MediaType.MOVIE),
+                ),
+                onMediaFilter = { selected = it },
+            )
+        }
+
+        compose.onNodeWithTag(LibraryTags.CHIP_TYPE).performClick()
+        assertEquals(null, selected)
     }
 
     /**
-     * Eight chips do not fit on one row, so they wrap: the last of them has to be on
-     * screen straight away rather than hidden past the right edge.
+     * The chips wrap onto a second row, so the last of them has to be on screen straight
+     * away rather than hidden past the right edge.
      */
     @Test
     fun theLastFilterChipIsVisibleWithoutScrollingSideways() {
@@ -371,7 +394,7 @@ class LibraryContentTest {
             LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
         }
 
-        compose.onNodeWithTag(LibraryTags.mediaChip(MediaType.MOVIE)).assertIsDisplayed()
+        compose.onNodeWithTag(LibraryTags.CHIP_TYPE).assertIsDisplayed()
     }
 
     @Test
@@ -609,7 +632,8 @@ class LibraryContentTest {
             }
         }
 
-        compose.onNodeWithTag(LibraryTags.LIST).performScrollToIndex(items.lastIndex)
+        // The filter block is item 0 of the list now, so the cards start one index later.
+        compose.onNodeWithTag(LibraryTags.LIST).performScrollToIndex(items.size)
         compose.waitForIdle()
 
         val card = compose.onNodeWithTag(LibraryTags.card("tv_12")).getBoundsInRoot()

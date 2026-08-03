@@ -134,14 +134,9 @@ fun SearchContent(
 
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().statusBarsPadding()) {
-                Text(
-                    text = "Поиск",
-                    fontSize = 32.sp,
-                    lineHeight = 40.sp,
-                    modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 20.dp, bottom = 12.dp),
-                )
-
+            // No screen title: the navigation pill already says "Поиск", and the field's
+            // own placeholder says what goes in it. The padding keeps it off the clock.
+            Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 8.dp)) {
                 PillSearchField(
                     value = state.query,
                     onValueChange = onQueryChange,
