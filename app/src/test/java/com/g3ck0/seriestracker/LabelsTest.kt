@@ -2,14 +2,17 @@ package com.g3ck0.seriestracker
 
 import com.g3ck0.seriestracker.ui.common.episodeCode
 import com.g3ck0.seriestracker.ui.common.episodesLabel
+import com.g3ck0.seriestracker.ui.common.formatAirDate
 import com.g3ck0.seriestracker.ui.common.formatMinutes
 import com.g3ck0.seriestracker.ui.common.moviesLabel
 import com.g3ck0.seriestracker.ui.common.nextLabel
+import com.g3ck0.seriestracker.ui.common.seasonsLabel
 import com.g3ck0.seriestracker.fake.progressOf
 import com.g3ck0.seriestracker.fake.tvTitle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.util.Locale
 
 class LabelsTest {
 
@@ -47,6 +50,46 @@ class LabelsTest {
         assertEquals("3 фильма", moviesLabel(3))
         assertEquals("0 фильмов", moviesLabel(0))
         assertEquals("11 фильмов", moviesLabel(11))
+
+        assertEquals("1 сезон", seasonsLabel(1))
+        assertEquals("3 сезона", seasonsLabel(3))
+        assertEquals("0 сезонов", seasonsLabel(0))
+        assertEquals("11 сезонов", seasonsLabel(11))
+        assertEquals("31 сезон", seasonsLabel(31))
+    }
+
+    @Test
+    fun `air dates are written the Russian way`() {
+        assertEquals("20 января 2008", formatAirDate("2008-01-20"))
+        assertEquals("1 сентября 2021", formatAirDate("2021-09-01"))
+        assertEquals("31 декабря 1999", formatAirDate("1999-12-31"))
+    }
+
+    /** The device language must not change the label — the UI is Russian either way. */
+    @Test
+    fun `air dates ignore the default locale`() {
+        val previous = Locale.getDefault()
+        Locale.setDefault(Locale.US)
+        try {
+            assertEquals("10 февраля 2008", formatAirDate("2008-02-10"))
+        } finally {
+            Locale.setDefault(previous)
+        }
+    }
+
+    /** A broken date is dropped by the caller, which only draws a non-empty label. */
+    @Test
+    fun `unparseable air dates come back empty`() {
+        assertEquals("", formatAirDate(""))
+        assertEquals("", formatAirDate("   "))
+        assertEquals("", formatAirDate("2008"))
+        assertEquals("", formatAirDate("20.01.2008"))
+        assertEquals("", formatAirDate("2008-13-40"))
+    }
+
+    @Test
+    fun `air dates tolerate surrounding whitespace`() {
+        assertEquals("20 января 2008", formatAirDate(" 2008-01-20 "))
     }
 
     @Test

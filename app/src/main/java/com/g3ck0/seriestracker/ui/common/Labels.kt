@@ -3,6 +3,10 @@ package com.g3ck0.seriestracker.ui.common
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.util.Locale
 
 val WatchStatus.label: String
     get() = when (this) {
@@ -31,6 +35,21 @@ fun formatMinutes(minutes: Int): String {
         append("$mins мин")
     }.trim()
 }
+
+/**
+ * The locale is pinned rather than taken from the device: the UI is Russian whatever the
+ * system language is, the same reason the backend is pinned to `ru-RU`.
+ */
+private val AIR_DATE_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("ru"))
+
+/** "2008-01-20" -> "20 января 2008". Empty when the date does not parse. */
+fun formatAirDate(iso: String): String =
+    try {
+        LocalDate.parse(iso.trim()).format(AIR_DATE_FORMAT)
+    } catch (_: DateTimeParseException) {
+        ""
+    }
 
 fun episodeCode(season: Int, episode: Int): String =
     "S%02dE%02d".format(season, episode)
@@ -66,3 +85,6 @@ fun episodesLabel(count: Int): String =
 
 fun moviesLabel(count: Int): String =
     "$count ${plural(count, "фильм", "фильма", "фильмов")}"
+
+fun seasonsLabel(count: Int): String =
+    "$count ${plural(count, "сезон", "сезона", "сезонов")}"

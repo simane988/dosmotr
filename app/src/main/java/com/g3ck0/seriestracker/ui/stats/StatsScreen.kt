@@ -58,16 +58,11 @@ fun StatsContent(stats: WatchStats) {
                 .fillMaxSize()
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, bottom = FloatingNavClearance),
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = FloatingNavClearance),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = "Статистика",
-                fontSize = 32.sp,
-                lineHeight = 40.sp,
-                modifier = Modifier.padding(start = 4.dp, top = 20.dp, bottom = 4.dp),
-            )
-
+            // No screen title: the navigation pill names the tab, and a 32sp heading
+            // pushed the first card 76 dp down the screen.
             StatCard {
                 Text(
                     text = "Всего просмотрено",

@@ -3,6 +3,7 @@ package com.g3ck0.seriestracker.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -44,6 +46,7 @@ class DetailContentTest {
             seasonNumber = season,
             episodeNumber = it,
             name = "Серия $it",
+            overview = "Описание серии $it",
             airDate = "2020-01-0$season",
             watched = it <= watchedUpTo,
         )
@@ -55,6 +58,7 @@ class DetailContentTest {
         status: WatchStatus = WatchStatus.WATCHING,
         rating: Int? = null,
         notes: String = "",
+        overview: String = "Описание сериала",
         seasons: List<Season> = listOf(Season(1, episodes(1, 4, watched))),
     ): DetailUiState {
         val title = TitleEntity(
@@ -62,7 +66,7 @@ class DetailContentTest {
             catalogId = 1,
             mediaType = MediaType.TV,
             name = "Уэнздей",
-            overview = "Описание сериала",
+            overview = overview,
             year = "2022",
             status = status,
             userRating = rating,
@@ -109,6 +113,30 @@ class DetailContentTest {
         compose.onNodeWithText("~45 мин/серия").assertIsDisplayed()
     }
 
+    /** The backend sends "2020-01-01"; nobody writes a date that way in Russian. */
+    @Test
+    fun airDatesAreShownInRussian() {
+        compose.setThemedContent { DetailContent(state = seriesState()) }
+        openEpisodesTab()
+
+        // Every episode of the fixture season carries the same date.
+        compose.onAllNodesWithText("1 января 2020")[0].assertIsDisplayed()
+        compose.onAllNodesWithText("2020-01-01").assertCountEquals(0)
+    }
+
+    /** A date the backend cannot supply properly is dropped, not shown as "Invalid date". */
+    @Test
+    fun brokenAirDatesAreNotShown() {
+        val broken = episodes(1, 1).map { it.copy(airDate = "не дата") }
+        compose.setThemedContent {
+            DetailContent(state = seriesState(seasons = listOf(Season(1, broken))))
+        }
+        openEpisodesTab()
+
+        compose.onNodeWithText("не дата").assertDoesNotExist()
+        compose.onNodeWithTag(DetailTags.episode(1, 1)).assertIsDisplayed()
+    }
+
     @Test
     fun episodesAreBehindTheirOwnTab() {
         compose.setThemedContent { DetailContent(state = seriesState()) }
@@ -127,6 +155,48 @@ class DetailContentTest {
 
         compose.onNodeWithTag(DetailTags.episode(1, 1)).assertDoesNotExist()
         compose.onNodeWithText("Просмотрено 1 из 4").assertIsDisplayed()
+    }
+
+    /** The synopsis is downloaded, stored and backed up — the "Обзор" tab is where it belongs. */
+    @Test
+    fun overviewTabShowsTheSynopsis() {
+        compose.setThemedContent { DetailContent(state = seriesState()) }
+
+        compose.onNodeWithTag(DetailTags.OVERVIEW).assertIsDisplayed()
+        compose.onNodeWithText("Описание сериала").assertIsDisplayed()
+    }
+
+    /** Four lines are enough for a short synopsis, so nothing is hidden and no button appears. */
+    @Test
+    fun shortSynopsisHasNoExpandButton() {
+        compose.setThemedContent { DetailContent(state = seriesState()) }
+
+        compose.onNodeWithTag(DetailTags.OVERVIEW_EXPAND).assertDoesNotExist()
+    }
+
+    @Test
+    fun longSynopsisExpandsAndCollapses() {
+        val long = "Очень длинное описание сериала, которое не помещается в четыре строки. ".repeat(20)
+        compose.setThemedContent { DetailContent(state = seriesState(overview = long)) }
+
+        compose.onNodeWithTag(DetailTags.OVERVIEW_EXPAND).performScrollTo().performClick()
+        // Expanded, the synopsis pushes the button off screen, so scroll before asserting.
+        compose.onNodeWithTag(DetailTags.OVERVIEW_EXPAND)
+            .performScrollTo()
+            .assertTextEquals("Свернуть")
+
+        compose.onNodeWithTag(DetailTags.OVERVIEW_EXPAND).performClick()
+        compose.onNodeWithTag(DetailTags.OVERVIEW_EXPAND)
+            .performScrollTo()
+            .assertTextEquals("Показать полностью")
+    }
+
+    /** Manually added titles have no synopsis; an empty block would be worse than none. */
+    @Test
+    fun titleWithoutSynopsisShowsNoBlock() {
+        compose.setThemedContent { DetailContent(state = movieState()) }
+
+        compose.onNodeWithTag(DetailTags.OVERVIEW).assertDoesNotExist()
     }
 
     @Test
@@ -185,6 +255,17 @@ class DetailContentTest {
             .performClick()
 
         assertEquals(WatchStatus.ON_HOLD, status)
+    }
+
+    /**
+     * The status is usually derived rather than tapped, so the last chip has to be on
+     * screen without anyone swiping the row sideways first.
+     */
+    @Test
+    fun theLastStatusChipIsVisibleWithoutScrollingSideways() {
+        compose.setThemedContent { DetailContent(state = seriesState(status = WatchStatus.DROPPED)) }
+
+        compose.onNodeWithTag(DetailTags.statusChip(WatchStatus.DROPPED)).assertIsDisplayed()
     }
 
     @Test
@@ -381,6 +462,34 @@ class DetailContentTest {
         compose.onNodeWithTag(DetailTags.episode(1, 2)).performClick()
 
         assertEquals(2, toggled?.episodeNumber)
+    }
+
+    /** The row tap is the watched toggle, so the synopsis has its own chevron. */
+    @Test
+    fun episodeSynopsisOpensFromTheChevron() {
+        var toggled: EpisodeEntity? = null
+        compose.setThemedContent {
+            DetailContent(state = seriesState(), onToggleEpisode = { toggled = it })
+        }
+        openEpisodesTab()
+
+        compose.onNodeWithTag(DetailTags.episodeOverview(1, 1)).assertDoesNotExist()
+        compose.onNodeWithTag(DetailTags.episodeExpand(1, 1)).performClick()
+
+        compose.onNodeWithTag(DetailTags.episodeOverview(1, 1)).assertIsDisplayed()
+        assertEquals(null, toggled)
+    }
+
+    /** Episodes the backend has no synopsis for get no chevron either. */
+    @Test
+    fun episodeWithoutSynopsisHasNoChevron() {
+        val bare = episodes(1, 1).map { it.copy(overview = "") }
+        compose.setThemedContent {
+            DetailContent(state = seriesState(seasons = listOf(Season(1, bare))))
+        }
+        openEpisodesTab()
+
+        compose.onNodeWithTag(DetailTags.episodeExpand(1, 1)).assertDoesNotExist()
     }
 
     @Test

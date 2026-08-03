@@ -2,6 +2,7 @@ package com.g3ck0.seriestracker
 
 import app.cash.turbine.test
 import com.g3ck0.seriestracker.data.local.MediaType
+import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import com.g3ck0.seriestracker.fake.FakeCatalogApi
 import com.g3ck0.seriestracker.fake.FakeTrackerDao
@@ -160,6 +161,7 @@ class SearchViewModelTest {
         }
         assertEquals(MediaType.TV, dao.getTitle("tv_7")!!.mediaType)
         assertEquals(2, dao.getEpisodes("tv_7").size)
+        assertEquals(WatchStatus.PLANNED, dao.getTitle("tv_7")!!.status)
     }
 
     @Test
@@ -187,6 +189,7 @@ class SearchViewModelTest {
         val stored = dao.titles().single()
         assertTrue(stored.id.startsWith("local_"))
         assertEquals(4, dao.getEpisodes(stored.id).size)
+        assertEquals(WatchStatus.PLANNED, stored.status)
     }
 
     @Test
