@@ -80,6 +80,46 @@ class TrackerDaoTest {
     }
 
     @Test
+    fun nextUnwatchedColumnsFollowAiringOrderNotInsertionOrder() = runTest {
+        dao.upsertTitle(title())
+        // Season 2 inserted first on purpose: only the ORDER BY can put S01E02 ahead.
+        dao.insertEpisodes(episodes("tv_1", 2, 2))
+        dao.insertEpisodes(episodes("tv_1", 1, 3))
+        dao.setEpisodeWatched("tv_1", 1, 1, watched = true, watchedAt = 10)
+
+        val row = dao.observeLibrary().first().single()
+
+        assertEquals(1, row.nextSeason)
+        assertEquals(2, row.nextEpisode)
+        assertEquals("S1E2", row.nextName)
+    }
+
+    @Test
+    fun nextUnwatchedColumnsAreNullOnceEverythingIsWatched() = runTest {
+        dao.upsertTitle(title())
+        dao.insertEpisodes(episodes("tv_1", 1, 2))
+        dao.setAllWatched("tv_1", watched = true, watchedAt = 10)
+
+        val row = dao.observeLibrary().first().single()
+
+        assertNull(row.nextSeason)
+        assertNull(row.nextEpisode)
+        assertNull(row.nextName)
+    }
+
+    /** Movies carry no episode rows at all, so the subqueries have nothing to find. */
+    @Test
+    fun nextUnwatchedColumnsAreNullForAMovie() = runTest {
+        dao.upsertTitle(title(id = "movie_1", type = MediaType.MOVIE))
+
+        val row = dao.observeLibrary().first().single()
+
+        assertNull(row.nextSeason)
+        assertNull(row.nextEpisode)
+        assertNull(row.nextName)
+    }
+
+    @Test
     fun libraryPutsRecentlyWatchedFirstThenNewlyAdded() = runTest {
         dao.upsertTitle(title(id = "old", addedAt = 1))
         dao.upsertTitle(title(id = "new", addedAt = 5))
@@ -267,6 +307,29 @@ class TrackerDaoTest {
 
         assertEquals(2, counts[WatchStatus.WATCHING])
         assertEquals(1, counts[WatchStatus.DROPPED])
+    }
+
+    @Test
+    fun remainingSkipsWatchedEpisodesAndTitlesNotBeingWatched() = runTest {
+        dao.upsertTitle(title(id = "tv_1", runtime = 45))
+        dao.insertEpisodes(episodes("tv_1", 1, 3))
+        dao.setEpisodeWatched("tv_1", 1, 1, watched = true, watchedAt = 1)
+        // Same three episodes, but the title is only planned: it is not counted at all.
+        dao.upsertTitle(title(id = "tv_2", status = WatchStatus.PLANNED, runtime = 20))
+        dao.insertEpisodes(episodes("tv_2", 1, 3))
+
+        val remaining = dao.observeRemaining().first()
+
+        assertEquals(2, remaining.episodes)
+        assertEquals(90, remaining.minutes)
+    }
+
+    @Test
+    fun remainingPrefersTheEpisodeRuntime() = runTest {
+        dao.upsertTitle(title(runtime = 45))
+        dao.insertEpisodes(episodes("tv_1", 1, 1, runtime = 62))
+
+        assertEquals(62, dao.observeRemaining().first().minutes)
     }
 
     @Test

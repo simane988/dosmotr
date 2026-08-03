@@ -6,6 +6,8 @@ import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
+import com.g3ck0.seriestracker.ui.common.UserError
+import com.g3ck0.seriestracker.ui.common.toUserError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -21,7 +23,7 @@ data class SearchUiState(
     val query: String = "",
     val results: List<SearchItem> = emptyList(),
     val loading: Boolean = false,
-    val error: String? = null,
+    val error: UserError? = null,
     val message: String? = null,
     val showingTrending: Boolean = true,
     val hasBackend: Boolean = true,
@@ -79,7 +81,7 @@ class SearchViewModel @Inject constructor(
             .onFailure {
                 _state.value = _state.value.copy(
                     loading = false,
-                    error = it.message ?: "Ошибка сети",
+                    error = it.toUserError(),
                 )
             }
     }
@@ -98,15 +100,18 @@ class SearchViewModel @Inject constructor(
             .onFailure {
                 _state.value = _state.value.copy(
                     loading = false,
-                    error = it.message ?: "Ошибка сети",
+                    error = it.toUserError(),
                 )
             }
     }
 
-    fun add(item: SearchItem, status: WatchStatus = WatchStatus.WATCHING) = viewModelScope.launch {
+    fun add(item: SearchItem, status: WatchStatus = WatchStatus.PLANNED) = viewModelScope.launch {
         repository.add(item, status)
             .onSuccess { _state.value = _state.value.copy(message = "«${item.name}» добавлен") }
-            .onFailure { _state.value = _state.value.copy(message = it.message ?: "Не удалось добавить") }
+            .onFailure {
+                val error = it.toUserError("Не удалось добавить")
+                _state.value = _state.value.copy(message = error.combined)
+            }
     }
 
     fun addManual(

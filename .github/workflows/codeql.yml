@@ -1,0 +1,62 @@
+name: CodeQL
+
+# Deliberately not part of CI: CodeQL costs a full compile per run, and running it on every
+# branch would spend more runner minutes than the whole test suite. Once a week against
+# develop — where finished features accumulate — is where a finding is still cheap to fix
+# and does not block anyone's branch.
+on:
+  schedule:
+    # Mondays 04:41 UTC. A scheduled run always starts on the default branch, so the
+    # checkout below pins develop explicitly.
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to analyse
+        required: false
+        default: develop
+
+concurrency:
+  group: codeql
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyse Kotlin and Java
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'develop' }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: manual
+          queries: security-and-quality
+
+      # A manual build rather than autobuild: autobuild guesses at the Gradle invocation and
+      # a run that compiles the wrong variant analyses nothing. No backend credentials here
+      # either — the debug build is meant to work without them.
+      - name: Assemble debug
+        run: |
+          ./gradlew --no-daemon --parallel \
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
+            -Dkotlin.daemon.jvmargs=-Xmx2g \
+            assembleDebug
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:java-kotlin

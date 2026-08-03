@@ -53,6 +53,9 @@ class DarkThemeTest {
         ),
         episodeCount = 8,
         watchedCount = 2,
+        nextSeason = 1,
+        nextEpisode = 3,
+        nextName = "Друг или враг",
     )
 
     @Test
@@ -66,7 +69,8 @@ class DarkThemeTest {
         }
 
         compose.onNodeWithText("Уэнздей").assertIsDisplayed()
-        compose.onNodeWithText("2 / 8 · осталось 6").assertIsDisplayed()
+        compose.onNodeWithText("2 / 8 серий").assertIsDisplayed()
+        compose.onNodeWithText("S01E03 · Друг или враг").assertIsDisplayed()
         compose.onNodeWithTag(LibraryTags.card("tv_1")).performClick()
 
         assertEquals("tv_1", opened)
@@ -119,7 +123,16 @@ class DarkThemeTest {
     @Test
     fun statsRenderInDark() {
         compose.setThemedContent(darkTheme = true) {
-            StatsContent(WatchStats(watchedEpisodes = 5, episodeMinutes = 225, watchedMovies = 1, movieMinutes = 139))
+            StatsContent(
+                WatchStats(
+                    watchedEpisodes = 5,
+                    episodeMinutes = 225,
+                    watchedMovies = 1,
+                    movieMinutes = 139,
+                    seriesCount = 1,
+                    movieCount = 1,
+                )
+            )
         }
 
         compose.onNodeWithTag(StatsTags.TOTAL).assertIsDisplayed()

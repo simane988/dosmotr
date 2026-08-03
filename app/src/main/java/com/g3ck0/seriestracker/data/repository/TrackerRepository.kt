@@ -2,6 +2,7 @@ package com.g3ck0.seriestracker.data.repository
 
 import com.g3ck0.seriestracker.data.local.EpisodeEntity
 import com.g3ck0.seriestracker.data.local.MediaType
+import com.g3ck0.seriestracker.data.local.RemainingWatch
 import com.g3ck0.seriestracker.data.local.TitleEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.TrackerDao
@@ -41,12 +42,15 @@ class TrackerRepository @Inject constructor(
         dao.observeWatchedEpisodeMinutes(),
         dao.observeWatchedMovieCount(),
         dao.observeWatchedMovieMinutes(),
+        // combine() tops out at five flows, so the library-wide counters travel as one
+        // value of their own.
         combine(
             dao.observeCountByType(MediaType.TV),
             dao.observeCountByType(MediaType.MOVIE),
             dao.observeStatusCounts(),
-        ) { series, movies, statuses ->
-            Triple(series, movies, statuses.associate { it.status to it.count })
+            dao.observeRemaining(),
+        ) { series, movies, statuses, remaining ->
+            LibraryCounts(series, movies, statuses.associate { it.status to it.count }, remaining)
         },
     ) { episodes, episodeMinutes, movies, movieMinutes, counts ->
         WatchStats(
@@ -54,9 +58,11 @@ class TrackerRepository @Inject constructor(
             episodeMinutes = episodeMinutes,
             watchedMovies = movies,
             movieMinutes = movieMinutes,
-            seriesCount = counts.first,
-            movieCount = counts.second,
-            byStatus = counts.third,
+            seriesCount = counts.seriesCount,
+            movieCount = counts.movieCount,
+            byStatus = counts.byStatus,
+            remainingEpisodes = counts.remaining.episodes,
+            remainingMinutes = counts.remaining.minutes,
         )
     }
 
@@ -75,7 +81,7 @@ class TrackerRepository @Inject constructor(
     // --- adding ---
 
     /** Saves the title immediately, then pulls details/episodes so the UI never waits on the network. */
-    suspend fun add(item: SearchItem, status: WatchStatus = WatchStatus.WATCHING): Result<String> =
+    suspend fun add(item: SearchItem, status: WatchStatus = WatchStatus.PLANNED): Result<String> =
         runCatching {
             val id = item.id
             dao.upsertTitle(
@@ -103,7 +109,7 @@ class TrackerRepository @Inject constructor(
         episodesPerSeason: List<Int>,
         runtimeMinutes: Int,
         year: String?,
-        status: WatchStatus = WatchStatus.WATCHING,
+        status: WatchStatus = WatchStatus.PLANNED,
     ): String {
         val id = "local_${UUID.randomUUID()}"
         dao.upsertTitle(
@@ -246,7 +252,23 @@ class TrackerRepository @Inject constructor(
 
     suspend fun setNotes(titleId: String, notes: String) = dao.setNotes(titleId, notes)
 
-    suspend fun delete(titleId: String) = dao.deleteTitle(titleId)
+    /**
+     * Deletes the title and returns what was removed, so a caller can offer an undo.
+     * The foreign key cascade takes the episodes with the title, hence the snapshot:
+     * nothing else in the database remembers which ones were watched.
+     */
+    suspend fun delete(titleId: String): DeletedTitle? {
+        val title = dao.getTitle(titleId) ?: return null
+        val episodes = dao.getEpisodes(titleId)
+        dao.deleteTitle(titleId)
+        return DeletedTitle(title, episodes)
+    }
+
+    /** Puts a [delete]d title back, watched flags included. */
+    suspend fun restore(deleted: DeletedTitle) {
+        dao.upsertTitle(deleted.title)
+        dao.upsertEpisodes(deleted.episodes)
+    }
 
     /**
      * Keeps status honest without taking it away from the user: finishing the last
@@ -277,6 +299,17 @@ class TrackerRepository @Inject constructor(
         const val DEFAULT_EPISODE_MINUTES = 45
     }
 }
+
+/** The half of [WatchStats] that counts titles rather than watched time. */
+private data class LibraryCounts(
+    val seriesCount: Int,
+    val movieCount: Int,
+    val byStatus: Map<WatchStatus, Int>,
+    val remaining: RemainingWatch,
+)
+
+/** A title as it was just before [TrackerRepository.delete] removed it. */
+data class DeletedTitle(val title: TitleEntity, val episodes: List<EpisodeEntity>)
 
 private fun SearchResultDto.toSearchItem(): SearchItem? {
     val type = when (mediaType) {

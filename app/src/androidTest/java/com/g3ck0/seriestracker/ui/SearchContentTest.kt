@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.repository.SearchItem
+import com.g3ck0.seriestracker.ui.common.UserError
 import com.g3ck0.seriestracker.ui.search.ManualAddTags
 import com.g3ck0.seriestracker.ui.search.SearchContent
 import com.g3ck0.seriestracker.ui.search.SearchTags
@@ -144,13 +145,16 @@ class SearchContentTest {
         var retried = false
         compose.setThemedContent {
             SearchContent(
-                state = SearchUiState(error = "Нет сети"),
+                state = SearchUiState(
+                    error = UserError("Нет сети", "Проверь сеть и попробуй ещё раз"),
+                ),
                 onSearchNow = { retried = true },
             )
         }
 
         compose.onNodeWithTag(SearchTags.ERROR).assertIsDisplayed()
         compose.onNodeWithText("Нет сети").assertIsDisplayed()
+        compose.onNodeWithText("Проверь сеть и попробуй ещё раз").assertIsDisplayed()
         compose.onNodeWithText("Повторить").performClick()
 
         assertTrue(retried)
@@ -204,10 +208,32 @@ class SearchContentTest {
 
     @Test
     fun manualDialogRefusesAnEmptyName() {
-        compose.setThemedContent { SearchContent(state = SearchUiState()) }
+        var confirmed = false
+        compose.setThemedContent {
+            SearchContent(state = SearchUiState(), onAddManual = { _, _, _, _, _ -> confirmed = true })
+        }
 
         compose.onNodeWithTag(SearchTags.MANUAL_FAB).performClick()
-        compose.onNodeWithTag(ManualAddTags.CONFIRM).assertIsNotEnabled()
+        compose.onNodeWithTag(ManualAddTags.CONFIRM).performClick()
+
+        assertTrue(!confirmed)
+        compose.onNodeWithText("Введи название").assertIsDisplayed()
+    }
+
+    @Test
+    fun manualDialogRefusesEmptySeasonsForTv() {
+        var confirmed = false
+        compose.setThemedContent {
+            SearchContent(state = SearchUiState(), onAddManual = { _, _, _, _, _ -> confirmed = true })
+        }
+
+        compose.onNodeWithTag(SearchTags.MANUAL_FAB).performClick()
+        compose.onNodeWithTag(ManualAddTags.NAME).performTextInput("Своё шоу")
+        compose.onNodeWithTag(ManualAddTags.SEASONS).performTextReplacement("abc")
+        compose.onNodeWithTag(ManualAddTags.CONFIRM).performClick()
+
+        assertTrue(!confirmed)
+        compose.onNodeWithText("Укажи число серий хотя бы для одного сезона").assertIsDisplayed()
     }
 
     @Test
@@ -239,6 +265,26 @@ class SearchContentTest {
 
         // The supporting text is merged into the text field's semantics node.
         compose.onNodeWithTag(ManualAddTags.SEASONS_SUMMARY, useUnmergedTree = true)
-            .assertTextEquals("3 сезон(ов), всего 10 серий")
+            .assertTextEquals("3 сезона, всего 10 серий")
+    }
+
+    @Test
+    fun seasonsHintIsAlwaysVisible() {
+        compose.setThemedContent { SearchContent(state = SearchUiState()) }
+
+        compose.onNodeWithTag(SearchTags.MANUAL_FAB).performClick()
+
+        compose.onNodeWithText("Через запятую, по одному числу на сезон — например: 12, 10, 8")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun switchingToMovieSuggestsALongerDefaultRuntime() {
+        compose.setThemedContent { SearchContent(state = SearchUiState()) }
+
+        compose.onNodeWithTag(SearchTags.MANUAL_FAB).performClick()
+        compose.onNodeWithTag(ManualAddTags.type(MediaType.MOVIE)).performClick()
+
+        compose.onNodeWithTag(ManualAddTags.RUNTIME, useUnmergedTree = true).assertTextEquals("120")
     }
 }

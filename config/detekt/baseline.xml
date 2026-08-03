@@ -1,0 +1,25 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:BackupRepository.kt$BackupRepository$private suspend fun applyImport( incoming: List&lt;BackupTitle&gt;, skipped: Int, mode: ImportMode, ): ImportResult</ID>
+    <ID>CyclomaticComplexMethod:TrackerRepository.kt$TrackerRepository$suspend fun refreshFromBackend(titleId: String): Result&lt;Unit&gt;</ID>
+    <ID>ForEachOnRange:DetailScreen.kt$1..10</ID>
+    <ID>MagicNumber:AppModule.kt$AppModule$15</ID>
+    <ID>MagicNumber:AppModule.kt$AppModule$20</ID>
+    <ID>MagicNumber:BackupModels.kt$10</ID>
+    <ID>MagicNumber:Labels.kt$10</ID>
+    <ID>MagicNumber:Labels.kt$100</ID>
+    <ID>MagicNumber:Labels.kt$11</ID>
+    <ID>MagicNumber:Labels.kt$14</ID>
+    <ID>MagicNumber:Labels.kt$24</ID>
+    <ID>MagicNumber:Labels.kt$4</ID>
+    <ID>MagicNumber:Labels.kt$60</ID>
+    <ID>MagicNumber:Model.kt$WatchStatus.COMPLETED$3</ID>
+    <ID>MagicNumber:Model.kt$WatchStatus.DROPPED$4</ID>
+    <ID>MagicNumber:SearchViewModel.kt$SearchViewModel$350</ID>
+    <ID>MagicNumber:TrackerRepository.kt$4</ID>
+    <ID>MagicNumber:TrackerRepository.kt$TrackerRepository$4</ID>
+    <ID>TooManyFunctions:TrackerDao.kt$TrackerDao</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -130,7 +131,8 @@ class LibraryViewModelTest {
             awaitUntil { !it.loading }
             vm.markNextWatched("tv_1")
             val message = awaitUntil { it.message != null }.message
-            assertEquals("Отмечено: S01E01", message)
+            assertEquals("Отмечено: S01E01", message?.text)
+            assertNull(message?.action)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -143,21 +145,88 @@ class LibraryViewModelTest {
         vm.state.test {
             awaitUntil { !it.loading }
             vm.markNextWatched("tv_1")
-            assertEquals("Все серии уже отмечены", awaitUntil { it.message != null }.message)
+            assertEquals("Все серии уже отмечены", awaitUntil { it.message != null }.message?.text)
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun `deleting removes the row and reports it`() = runTest {
+    fun `deleting removes the row and names the title it took`() = runTest {
         seedLibrary()
         val vm = viewModel()
 
         vm.state.test {
             awaitUntil { !it.loading }
             vm.delete("tv_1")
-            val afterDelete = awaitUntil { it.message == "Удалено" }
+            val afterDelete = awaitUntil { it.message != null }
+            assertEquals("Тайтл «Dark» удалён", afterDelete.message?.text)
+            assertEquals("Отменить", afterDelete.message?.action)
             assertEquals(2, afterDelete.items.size)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `undo brings the title back with its watched episodes`() = runTest {
+        dao.seedTitle(tvTitle(id = "tv_1", name = "Dark", status = WatchStatus.WATCHING))
+        dao.seedEpisodes(episodesFor("tv_1", mapOf(1 to 4)))
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            vm.markNextWatched("tv_1")
+            advanceUntilIdle()
+
+            vm.delete("tv_1")
+            advanceUntilIdle()
+            assertTrue(expectMostRecentItem().items.isEmpty())
+
+            vm.undoDelete()
+            advanceUntilIdle()
+            val restored = expectMostRecentItem()
+            assertEquals("tv_1", restored.items.single().title.id)
+            assertEquals(4, restored.items.single().episodeCount)
+            assertEquals(1, restored.items.single().watchedCount)
+            assertEquals("Тайтл «Dark» восстановлен", restored.message?.text)
+            assertNull(restored.message?.action)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `undo does nothing when nothing was deleted`() = runTest {
+        seedLibrary()
+        val vm = viewModel()
+
+        vm.state.test {
+            val loaded = awaitUntil { !it.loading }
+            assertEquals(3, loaded.items.size)
+
+            vm.undoDelete()
+            advanceUntilIdle()
+
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a second undo cannot restore the title twice`() = runTest {
+        seedLibrary()
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            vm.delete("tv_1")
+            advanceUntilIdle()
+            vm.undoDelete()
+            advanceUntilIdle()
+            assertEquals(3, expectMostRecentItem().items.size)
+
+            vm.undoDelete()
+            advanceUntilIdle()
+
+            expectNoEvents()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -197,5 +266,84 @@ class LibraryViewModelTest {
         advanceUntilIdle()
 
         assertTrue(dao.getTitle("movie_1")!!.movieWatched)
+    }
+
+    /** Three watching titles the DAO orders A, B, C — none of them watched yet. */
+    private fun seedWatchingRows() {
+        listOf("tv_1" to "A", "tv_2" to "B", "tv_3" to "C").forEachIndexed { index, (id, name) ->
+            dao.seedTitle(
+                tvTitle(
+                    id = id,
+                    name = name,
+                    addedAt = 3_000L - index * 1_000L,
+                    status = WatchStatus.WATCHING,
+                )
+            )
+            dao.seedEpisodes(episodesFor(id, mapOf(1 to 4)))
+        }
+    }
+
+    @Test
+    fun `marking an episode leaves the row where it is`() = runTest {
+        seedWatchingRows()
+        val vm = viewModel()
+
+        vm.state.test {
+            assertEquals(listOf("A", "B", "C"), awaitUntil { !it.loading }.items.map { it.title.name })
+            vm.markNextWatched("tv_3")
+            // The DAO now sorts C first (lastWatchedAt DESC); the frozen order must not.
+            val after = awaitUntil { it.message != null }
+            assertEquals(listOf("A", "B", "C"), after.items.map { it.title.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `refreshing the order applies the DAO sort again`() = runTest {
+        seedWatchingRows()
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            vm.markNextWatched("tv_3")
+            awaitUntil { it.message != null }
+            vm.refreshOrder()
+            val resorted = awaitUntil { it.items.first().title.name == "C" }
+            assertEquals(listOf("C", "A", "B"), resorted.items.map { it.title.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a filter change applies the DAO sort again`() = runTest {
+        seedWatchingRows()
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            vm.markNextWatched("tv_3")
+            awaitUntil { it.message != null }
+            vm.setStatusFilter(WatchStatus.WATCHING)
+            val filtered = awaitUntil { it.filters.status == WatchStatus.WATCHING }
+            assertEquals(listOf("C", "A", "B"), filtered.items.map { it.title.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a title added while the order is frozen keeps its place in it`() = runTest {
+        seedWatchingRows()
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            // The DAO sorts this one between A and B; it must land there, not at the end.
+            dao.seedTitle(
+                tvTitle(id = "tv_4", name = "New", addedAt = 2_500, status = WatchStatus.WATCHING)
+            )
+            val grown = awaitUntil { it.items.size == 4 }
+            assertEquals(listOf("A", "New", "B", "C"), grown.items.map { it.title.name })
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }

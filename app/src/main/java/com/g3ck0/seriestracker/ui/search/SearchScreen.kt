@@ -5,14 +5,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
@@ -25,7 +29,6 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -49,12 +52,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.repository.SearchItem
+import com.g3ck0.seriestracker.ui.FloatingFabClearance
 import com.g3ck0.seriestracker.ui.FloatingNavClearance
 import com.g3ck0.seriestracker.ui.common.ClearFocusWhenDialogCloses
 import com.g3ck0.seriestracker.ui.common.ExtendedActionButton
+import com.g3ck0.seriestracker.ui.common.IndeterminateProgressBar
 import com.g3ck0.seriestracker.ui.common.PillSearchField
 import com.g3ck0.seriestracker.ui.common.Poster
 import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
+import com.g3ck0.seriestracker.ui.common.UserError
 import com.g3ck0.seriestracker.ui.common.label
 
 object SearchTags {
@@ -128,14 +134,9 @@ fun SearchContent(
 
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().statusBarsPadding()) {
-                Text(
-                    text = "Поиск",
-                    fontSize = 32.sp,
-                    lineHeight = 40.sp,
-                    modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 20.dp, bottom = 12.dp),
-                )
-
+            // No screen title: the navigation pill already says "Поиск", and the field's
+            // own placeholder says what goes in it. The padding keeps it off the clock.
+            Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 8.dp)) {
                 PillSearchField(
                     value = state.query,
                     onValueChange = onQueryChange,
@@ -163,11 +164,10 @@ fun SearchContent(
                 )
 
                 if (state.loading) {
-                    LinearProgressIndicator(
+                    IndeterminateProgressBar(
                         Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp)
-                            .height(4.dp)
                             .testTag(SearchTags.LOADING)
                     )
                 }
@@ -175,7 +175,7 @@ fun SearchContent(
                 when {
                     !state.hasBackend -> NoBackend(onManual = { manualDialog = true })
 
-                    state.error != null -> ErrorBlock(message = state.error, onRetry = onSearchNow)
+                    state.error != null -> ErrorBlock(error = state.error, onRetry = onSearchNow)
 
                     state.results.isEmpty() && !state.loading && state.query.isNotBlank() ->
                         NothingFound(query = state.query, onManual = { manualDialog = true })
@@ -219,8 +219,10 @@ fun SearchContent(
                 onClick = { manualDialog = true },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
-                    .padding(end = 16.dp, bottom = 104.dp)
+                    .windowInsetsPadding(
+                        WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)
+                    )
+                    .padding(end = 16.dp, bottom = FloatingFabClearance)
                     .testTag(SearchTags.MANUAL_FAB),
             )
 
@@ -342,11 +344,11 @@ private fun NothingFound(query: String, onManual: () -> Unit) {
 }
 
 @Composable
-private fun ErrorBlock(message: String, onRetry: () -> Unit) {
+private fun ErrorBlock(error: UserError, onRetry: () -> Unit) {
     CenteredMessage(
         tag = SearchTags.ERROR,
-        title = message,
-        body = null,
+        title = error.title,
+        body = error.body,
         actionLabel = "Повторить",
         onAction = onRetry,
     )

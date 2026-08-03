@@ -98,6 +98,7 @@ class TrackerRepositoryTest {
         assertEquals("Offline Series", stored!!.name)
         // Not loaded, so the detail screen knows to retry later.
         assertFalse(stored.episodesLoaded)
+        assertEquals(WatchStatus.PLANNED, stored.status)
     }
 
     @Test
@@ -164,6 +165,7 @@ class TrackerRepositoryTest {
         assertEquals(listOf(1, 2, 3, 1, 2), episodes.map { it.episodeNumber })
         assertTrue(episodes.all { it.runtimeMinutes == 30 })
         assertTrue(dao.getTitle(id)!!.episodesLoaded)
+        assertEquals(WatchStatus.PLANNED, dao.getTitle(id)!!.status)
     }
 
     @Test
@@ -172,6 +174,7 @@ class TrackerRepositoryTest {
 
         assertTrue(dao.getEpisodes(id).isEmpty())
         assertEquals(MediaType.MOVIE, dao.getTitle(id)!!.mediaType)
+        assertEquals(WatchStatus.PLANNED, dao.getTitle(id)!!.status)
     }
 
     // --- progress and status ---
@@ -301,6 +304,30 @@ class TrackerRepositoryTest {
 
         assertNull(dao.getTitle("tv_1"))
         assertTrue(dao.episodes().isEmpty())
+    }
+
+    @Test
+    fun `delete hands back what it removed and restore puts it back`() = runTest {
+        val repo = repository()
+        dao.seedTitle(tvTitle(id = "tv_1", name = "Dark"))
+        dao.seedEpisodes(episodesFor("tv_1", mapOf(1 to 3)))
+        repo.markNextWatched("tv_1")
+
+        val removed = repo.delete("tv_1")!!
+        assertEquals("Dark", removed.title.name)
+        assertEquals(3, removed.episodes.size)
+        assertEquals(1, removed.episodes.count { it.watched })
+
+        repo.restore(removed)
+
+        assertNotNull(dao.getTitle("tv_1"))
+        assertEquals(3, dao.getEpisodes("tv_1").size)
+        assertEquals(1, dao.getEpisodes("tv_1").count { it.watched })
+    }
+
+    @Test
+    fun `deleting an unknown title reports nothing to undo`() = runTest {
+        assertNull(repository().delete("tv_missing"))
     }
 
     @Test

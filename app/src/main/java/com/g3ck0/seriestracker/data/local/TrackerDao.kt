@@ -9,10 +9,20 @@ import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
+// The three "next" subqueries all resolve the same row — the first unwatched episode in
+// airing order — over the (titleId, seasonNumber) index, which is why repeating them is
+// cheaper than it looks. A window function would fold them into one pass but needs
+// SQLite 3.25 (API 28), and minSdk here is 26.
 private const val PROGRESS_SELECT = """
     SELECT t.*,
         (SELECT COUNT(*) FROM episodes e WHERE e.titleId = t.id) AS episodeCount,
-        (SELECT COUNT(*) FROM episodes e WHERE e.titleId = t.id AND e.watched = 1) AS watchedCount
+        (SELECT COUNT(*) FROM episodes e WHERE e.titleId = t.id AND e.watched = 1) AS watchedCount,
+        (SELECT e.seasonNumber FROM episodes e WHERE e.titleId = t.id AND e.watched = 0
+         ORDER BY e.seasonNumber, e.episodeNumber LIMIT 1) AS nextSeason,
+        (SELECT e.episodeNumber FROM episodes e WHERE e.titleId = t.id AND e.watched = 0
+         ORDER BY e.seasonNumber, e.episodeNumber LIMIT 1) AS nextEpisode,
+        (SELECT e.name FROM episodes e WHERE e.titleId = t.id AND e.watched = 0
+         ORDER BY e.seasonNumber, e.episodeNumber LIMIT 1) AS nextName
     FROM titles t
 """
 
@@ -184,6 +194,26 @@ interface TrackerDao {
 
     @Query("SELECT status, COUNT(*) AS count FROM titles GROUP BY status")
     fun observeStatusCounts(): Flow<List<StatusCount>>
+
+    /**
+     * What is left to finish the titles in "Смотрю". The runtime falls back to the title's
+     * the same way [observeWatchedEpisodeMinutes] does, so an episode the backend gave no
+     * runtime for still counts. Only WATCHING: planned titles are not started yet and a
+     * dropped one is not going to be finished, so counting them answers a question nobody
+     * asked.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) AS episodes,
+            COALESCE(SUM(CASE WHEN e.runtimeMinutes > 0 THEN e.runtimeMinutes ELSE t.runtimeMinutes END), 0) AS minutes
+        FROM episodes e JOIN titles t ON t.id = e.titleId
+        WHERE e.watched = 0 AND t.status = 'WATCHING'
+        """
+    )
+    fun observeRemaining(): Flow<RemainingWatch>
 }
 
 data class StatusCount(val status: WatchStatus, val count: Int)
+
+/** Unwatched episodes of the titles in "Смотрю", and how long they run. */
+data class RemainingWatch(val episodes: Int = 0, val minutes: Int = 0)

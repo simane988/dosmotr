@@ -91,6 +91,14 @@ data class TitleWithProgress(
     @Embedded val title: TitleEntity,
     @ColumnInfo(name = "episodeCount") val episodeCount: Int,
     @ColumnInfo(name = "watchedCount") val watchedCount: Int,
+    // The first unwatched episode in airing order, computed by the same query as the
+    // counters: the library card names what "+ 1 серия" will mark, and one row per title
+    // beats a per-item suspend call that cannot stay in sync with the Flow.
+    // All three are null when nothing is left to watch, and for movies, which have no
+    // episode rows at all.
+    @ColumnInfo(name = "nextSeason") val nextSeason: Int? = null,
+    @ColumnInfo(name = "nextEpisode") val nextEpisode: Int? = null,
+    @ColumnInfo(name = "nextName") val nextName: String? = null,
 ) {
     val isCompleted: Boolean
         get() = if (title.isMovie) title.movieWatched else episodeCount > 0 && watchedCount >= episodeCount
@@ -120,6 +128,12 @@ data class WatchStats(
     val seriesCount: Int = 0,
     val movieCount: Int = 0,
     val byStatus: Map<WatchStatus, Int> = emptyMap(),
+    /** Unwatched episodes of the titles in "Смотрю" — what is left to finish them. */
+    val remainingEpisodes: Int = 0,
+    val remainingMinutes: Int = 0,
 ) {
     val totalMinutes: Int get() = episodeMinutes + movieMinutes
+
+    /** True while the library holds nothing at all: the screen then has no numbers to show. */
+    val isEmpty: Boolean get() = seriesCount == 0 && movieCount == 0
 }

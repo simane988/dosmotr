@@ -7,7 +7,9 @@ import com.g3ck0.seriestracker.data.local.EpisodeEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
+import com.g3ck0.seriestracker.ui.common.toUserError
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -118,14 +120,19 @@ class DetailViewModel @Inject constructor(
         repository.setRating(titleId, rating)
     }
 
-    fun setNotes(notes: String) = viewModelScope.launch {
+    /**
+     * [NonCancellable] because the notes field flushes unsaved text when it leaves the
+     * composition — which on a back press is the same moment this scope is cancelled.
+     * Without it the write would race the pop and the note would be lost silently again.
+     */
+    fun setNotes(notes: String) = viewModelScope.launch(NonCancellable) {
         repository.setNotes(titleId, notes)
     }
 
     fun refresh() = viewModelScope.launch {
         refreshing.value = true
         repository.refreshFromBackend(titleId)
-            .onFailure { message.value = it.message ?: "Не удалось обновить" }
+            .onFailure { message.value = it.toUserError("Не удалось обновить").combined }
             .onSuccess { message.value = "Обновлено" }
         refreshing.value = false
     }
