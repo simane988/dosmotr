@@ -3,6 +3,7 @@ package com.g3ck0.seriestracker.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -523,6 +524,20 @@ class DetailContentTest {
         assertEquals(1, season?.number)
     }
 
+    /** The action used to be a bare "≡✓" icon nobody could read. */
+    @Test
+    fun watchUpToCarriesALabel() {
+        compose.setThemedContent { DetailContent(state = seriesState(watched = 1)) }
+        openEpisodesTab()
+
+        compose.onNodeWithTag(DetailTags.LIST)
+            .performScrollToNode(hasTestTag(DetailTags.watchUpTo(1, 2)))
+        compose.onNodeWithTag(DetailTags.watchUpTo(1, 2))
+            .assertIsDisplayed()
+            .assertContentDescriptionEquals("Отметить всё до этой серии")
+        compose.onAllNodesWithText("до сюда", useUnmergedTree = true)[0].assertIsDisplayed()
+    }
+
     @Test
     fun seasonHeaderShowsItsCounter() {
         compose.setThemedContent { DetailContent(state = seriesState(watched = 2)) }
@@ -530,6 +545,56 @@ class DetailContentTest {
 
         compose.onNodeWithText("Сезон 1").assertIsDisplayed()
         compose.onNodeWithText("2 / 4").assertIsDisplayed()
+    }
+
+    /** Five seasons deep, the fraction is not what tells you where you stopped. */
+    @Test
+    fun finishedSeasonIsTickedAndHasNoProgressBar() {
+        compose.setThemedContent { DetailContent(state = seriesState(watched = 4)) }
+        openEpisodesTab()
+
+        compose.onNodeWithTag(DetailTags.seasonDone(1), useUnmergedTree = true)
+            .assertIsDisplayed()
+        compose.onNodeWithTag(DetailTags.seasonProgress(1), useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun startedSeasonShowsAProgressBarInstead() {
+        compose.setThemedContent { DetailContent(state = seriesState(watched = 2)) }
+        openEpisodesTab()
+
+        compose.onNodeWithTag(DetailTags.seasonProgress(1), useUnmergedTree = true)
+            .assertIsDisplayed()
+        compose.onNodeWithTag(DetailTags.seasonDone(1), useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun untouchedSeasonHasNeitherTickNorBar() {
+        compose.setThemedContent { DetailContent(state = seriesState(watched = 0)) }
+        openEpisodesTab()
+
+        compose.onNodeWithTag(DetailTags.seasonProgress(1), useUnmergedTree = true)
+            .assertDoesNotExist()
+        compose.onNodeWithTag(DetailTags.seasonDone(1), useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
+
+    /** The header carries the name; the bar above it repeated it on the same screen. */
+    @Test
+    fun topBarIsEmptyUntilTheHeaderScrollsAway() {
+        // A season long enough that the list has somewhere to scroll on any screen size.
+        val long = seriesState(seasons = listOf(Season(1, episodes(1, 30))), total = 30, watched = 0)
+        compose.setThemedContent { DetailContent(state = long) }
+
+        compose.onNodeWithTag(DetailTags.TOP_TITLE).assertTextEquals("")
+
+        openEpisodesTab()
+        compose.onNodeWithTag(DetailTags.LIST)
+            .performScrollToNode(hasTestTag(DetailTags.episode(1, 30)))
+
+        compose.onNodeWithTag(DetailTags.TOP_TITLE).assertTextEquals("Уэнздей")
     }
 
     @Test
