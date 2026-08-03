@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.g3ck0.seriestracker.ui.ExtendedActionButtonHeight
 import com.g3ck0.seriestracker.ui.FloatingNavClearance
 
 /**
@@ -90,7 +91,7 @@ fun ExtendedActionButton(
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         shadowElevation = 4.dp,
-        modifier = modifier.height(56.dp),
+        modifier = modifier.height(ExtendedActionButtonHeight),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 20.dp),

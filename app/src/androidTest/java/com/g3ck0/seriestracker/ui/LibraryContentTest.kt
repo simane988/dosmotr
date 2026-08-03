@@ -1,5 +1,9 @@
 package com.g3ck0.seriestracker.ui
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -10,6 +14,7 @@ import com.g3ck0.seriestracker.ui.about.AboutTags
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -42,6 +47,8 @@ class LibraryContentTest {
         nextSeason: Int? = 1,
         nextEpisode: Int? = 4,
         nextName: String? = "Двойники",
+        userRating: Int? = null,
+        notes: String = "",
     ) = TitleWithProgress(
         title = TitleEntity(
             id = id,
@@ -50,6 +57,8 @@ class LibraryContentTest {
             name = name,
             status = status,
             year = "2017",
+            userRating = userRating,
+            notes = notes,
         ),
         episodeCount = episodes,
         watchedCount = watched,
@@ -58,14 +67,21 @@ class LibraryContentTest {
         nextName = nextName,
     )
 
-    private fun movie(id: String = "movie_1", name: String = "Fight Club", watched: Boolean = false) =
+    private fun movie(
+        id: String = "movie_1",
+        name: String = "Fight Club",
+        watched: Boolean = false,
+        status: WatchStatus = if (watched) WatchStatus.COMPLETED else WatchStatus.PLANNED,
+        overview: String = "",
+    ) =
         TitleWithProgress(
             title = TitleEntity(
                 id = id,
                 catalogId = 5,
                 mediaType = MediaType.MOVIE,
                 name = name,
-                status = if (watched) WatchStatus.COMPLETED else WatchStatus.PLANNED,
+                status = status,
+                overview = overview,
                 movieWatched = watched,
                 year = "1999",
             ),
@@ -121,6 +137,98 @@ class LibraryContentTest {
 
         compose.onNodeWithText("Fight Club").assertIsDisplayed()
         compose.onNodeWithText("Просмотрен").assertIsDisplayed()
+    }
+
+    /**
+     * feature-3: the score and the note were only visible inside a title, which made both
+     * useless on a library of dozens.
+     */
+    @Test
+    fun cardShowsTheUserScoreAndThatThereIsANote() {
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(
+                    loading = false,
+                    items = listOf(series(userRating = 9, notes = "Пересмотреть финал")),
+                ),
+            )
+        }
+
+        compose.onNodeWithTag(LibraryTags.rating("tv_1"), useUnmergedTree = true)
+            .assertTextEquals("9")
+        compose.onNodeWithTag(LibraryTags.notes("tv_1"), useUnmergedTree = true).assertExists()
+    }
+
+    /** Nothing to show: no empty star, no orphan note icon. */
+    @Test
+    fun anUnratedTitleWithoutNotesShowsNeitherBadge() {
+        compose.setThemedContent {
+            LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
+        }
+
+        compose.onNodeWithTag(LibraryTags.rating("tv_1"), useUnmergedTree = true)
+            .assertDoesNotExist()
+        compose.onNodeWithTag(LibraryTags.notes("tv_1"), useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
+
+    /** A movie card is as tall as a series one, so the freed half carries the synopsis. */
+    @Test
+    fun movieCardFillsItsSpaceWithTheSynopsis() {
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(
+                    loading = false,
+                    items = listOf(movie(overview = "Бессонный клерк основывает бойцовский клуб.")),
+                ),
+            )
+        }
+
+        compose.onNodeWithTag(LibraryTags.overview("movie_1"), useUnmergedTree = true)
+            .assertIsDisplayed()
+    }
+
+    /** No synopsis stored: the card simply has no such line, and nothing else moves. */
+    @Test
+    fun movieCardWithoutASynopsisShowsNoEmptyLine() {
+        compose.setThemedContent {
+            LibraryContent(state = LibraryUiState(loading = false, items = listOf(movie())))
+        }
+
+        compose.onNodeWithTag(LibraryTags.overview("movie_1"), useUnmergedTree = true)
+            .assertDoesNotExist()
+        compose.onNodeWithText("Не просмотрен").assertIsDisplayed()
+    }
+
+    /** "Фильм · Смотрю" over "Не просмотрен" is a contradiction; the status goes. */
+    @Test
+    fun aWatchingMovieDoesNotAdvertiseThatStatus() {
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(
+                    loading = false,
+                    items = listOf(movie(status = WatchStatus.WATCHING)),
+                ),
+            )
+        }
+
+        compose.onNodeWithText("Фильм · 1999").assertIsDisplayed()
+        compose.onNodeWithText("Не просмотрен").assertIsDisplayed()
+    }
+
+    /** The other four statuses are hand-picked and stay on the card. */
+    @Test
+    fun aDroppedMovieStillShowsItsStatus() {
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(
+                    loading = false,
+                    items = listOf(movie(status = WatchStatus.DROPPED)),
+                ),
+            )
+        }
+
+        compose.onNodeWithText("Фильм · 1999 · Брошено").assertIsDisplayed()
     }
 
     @Test
@@ -461,10 +569,20 @@ class LibraryContentTest {
      */
     @Test
     fun theFabDropsToTheBottomEdgeWhenThePillLeavesRoomBesideIt() {
-        showLibraryWith(FloatingNavMetrics(space = 104.dp, freeWidth = 598.dp))
+        var systemBars = 0.dp
+        showLibraryWith(FloatingNavMetrics(space = 104.dp, freeWidth = 598.dp)) {
+            systemBars = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        }
 
+        // The bar itself is not a fixed height — 24 dp of gesture bar on one device, a
+        // 48 dp button bar on the emulator — so the expected gap is measured, not spelt
+        // out: it is exactly the bar plus the 16 dp gap the FAB keeps off it. Anything
+        // lifted over the pill lands 104 dp higher and fails this.
         val gap = fabBottomGap()
-        assertTrue("FAB sits $gap above the bottom edge", gap < 48.dp)
+        assertTrue(
+            "FAB sits $gap above the bottom edge, over $systemBars of system bars",
+            gap <= systemBars + 16.dp + tolerance,
+        )
     }
 
     /** Portrait: the pill spans the width, so the FAB has to clear it vertically. */
@@ -476,13 +594,43 @@ class LibraryContentTest {
         assertTrue("FAB sits $gap above the bottom edge", gap >= 104.dp)
     }
 
-    private fun showLibraryWith(metrics: FloatingNavMetrics) {
+    /**
+     * feature-3: the FAB is drawn over the list, so scrolling to the end used to leave the
+     * bottom-right corner of the last card under the button.
+     */
+    @Test
+    fun theLastCardIsNotTrappedUnderTheFab() {
+        val items = (1..12).map { series(id = "tv_$it", name = "Тайтл $it") }
+        compose.setThemedContent {
+            CompositionLocalProvider(
+                LocalFloatingNav provides FloatingNavMetrics(space = 104.dp, freeWidth = 95.dp)
+            ) {
+                LibraryContent(state = LibraryUiState(loading = false, items = items))
+            }
+        }
+
+        compose.onNodeWithTag(LibraryTags.LIST).performScrollToIndex(items.lastIndex)
+        compose.waitForIdle()
+
+        val card = compose.onNodeWithTag(LibraryTags.card("tv_12")).getBoundsInRoot()
+        val fab = compose.onNodeWithTag(LibraryTags.FAB).getBoundsInRoot()
+        assertTrue(
+            "card ends at ${card.bottom}, FAB starts at ${fab.top}",
+            card.bottom <= fab.top,
+        )
+    }
+
+    private fun showLibraryWith(metrics: FloatingNavMetrics, onComposed: @Composable () -> Unit = {}) {
         compose.setThemedContent {
             CompositionLocalProvider(LocalFloatingNav provides metrics) {
+                onComposed()
                 LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
             }
         }
     }
+
+    /** Rounding between measured insets and laid-out pixels, nothing more. */
+    private val tolerance = 2.dp
 
     /** Distance from the bottom of the FAB to the bottom of the screen. */
     private fun fabBottomGap(): Dp =
