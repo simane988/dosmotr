@@ -1,14 +1,16 @@
 package com.g3ck0.seriestracker.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,7 +48,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -56,7 +57,6 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -162,6 +162,11 @@ private val NavIndicatorSpec = spring<Dp>(
     dampingRatio = Spring.DampingRatioLowBouncy,
     stiffness = Spring.StiffnessMediumLow,
 )
+/** Label expansion drives the layout, so it must not bounce or the text jitters. */
+private val NavSizeSpec = spring<IntSize>(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessMediumLow,
+)
 private const val NAV_LABEL_MILLIS = 180
 private const val NAV_COLOR_MILLIS = 220
 
@@ -236,9 +241,9 @@ fun AppRoot() {
                     }
                 },
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.BottomStart)
                     .navigationBarsPadding()
-                    .padding(bottom = 20.dp)
+                    .padding(start = 16.dp, bottom = 20.dp)
                     .onGloballyPositioned { barBounds = it.boundsInParent() },
             )
         }
@@ -293,8 +298,7 @@ private fun AppNavHost(navController: NavHostController) {
 /**
  * The coloured highlight is a single pill drawn behind the row and animated to the
  * selected tab's measured bounds, so it slides across instead of blinking from one
- * item to the next. Every tab reserves the width of the longest label up front, so a
- * tab's bounds do not move when it is (de)selected — only the label's alpha does.
+ * item to the next. The tabs themselves expand and collapse their label underneath it.
  */
 @Composable
 private fun FloatingNavBar(
@@ -303,17 +307,8 @@ private fun FloatingNavBar(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    val textMeasurer = rememberTextMeasurer()
-    val labelStyle = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
-    // Reserved once for every tab, sized to the longest label ("Статистика"), so
-    // selecting a tab never re-lays out the row.
-    val maxLabelWidth = remember(density, labelStyle) {
-        with(density) {
-            tabs.maxOf { textMeasurer.measure(text = it.label, style = labelStyle).size.width }.toDp()
-        }
-    }
-    // Measured per tab; bounds are now fixed width, but still per-tab since x
-    // position depends on where in the row the tab sits.
+    // Measured per tab; the highlight needs real bounds because a selected tab is
+    // wider than a collapsed one and every position shifts when the label appears.
     val bounds = remember { mutableStateMapOf<String, Pair<Dp, Dp>>() }
     val target = bounds[currentRoute]
 
@@ -391,23 +386,24 @@ private fun FloatingNavBar(
                             tint = contentColor,
                             modifier = Modifier.size(24.dp),
                         )
-                        val labelAlpha by animateFloatAsState(
-                            targetValue = if (selected) 1f else 0f,
-                            animationSpec = tween(NAV_LABEL_MILLIS),
-                            label = "navLabelAlpha",
-                        )
-                        // Width is fixed for every tab, so fading the label in or out
-                        // never changes the row's layout, only what is visible in it.
-                        Text(
-                            text = tab.label,
-                            style = labelStyle,
-                            color = contentColor,
-                            maxLines = 1,
-                            modifier = Modifier
-                                .padding(start = 8.dp)
-                                .width(maxLabelWidth)
-                                .alpha(labelAlpha),
-                        )
+                        // Expanding the label is what makes the row re-layout, which
+                        // in turn gives the highlight somewhere new to slide to.
+                        AnimatedVisibility(
+                            visible = selected,
+                            enter = fadeIn(tween(NAV_LABEL_MILLIS)) +
+                                expandHorizontally(NavSizeSpec),
+                            exit = fadeOut(tween(NAV_LABEL_MILLIS)) +
+                                shrinkHorizontally(NavSizeSpec),
+                        ) {
+                            Text(
+                                text = tab.label,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = contentColor,
+                                maxLines = 1,
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
                     }
                 }
             }
