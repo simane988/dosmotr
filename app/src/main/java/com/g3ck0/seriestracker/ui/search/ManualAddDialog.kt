@@ -31,6 +31,7 @@ import com.g3ck0.seriestracker.ui.common.DialogTextButton
 import com.g3ck0.seriestracker.ui.common.episodesLabel
 import com.g3ck0.seriestracker.ui.common.label
 import com.g3ck0.seriestracker.ui.common.seasonsLabel
+import java.time.Year
 
 object ManualAddTags {
     const val NAME = "manual:name"
@@ -56,7 +57,10 @@ fun ManualAddDialog(
     var type by remember { mutableStateOf(MediaType.TV) }
     var seasonsSpec by remember { mutableStateOf("10") }
     var runtime by remember { mutableStateOf("45") }
+    var runtimeTouched by remember { mutableStateOf(false) }
     var year by remember { mutableStateOf("") }
+    var showNameError by remember { mutableStateOf(false) }
+    var showSeasonsError by remember { mutableStateOf(false) }
 
     val episodesPerSeason = parseSeasons(seasonsSpec)
     val valid = name.isNotBlank() && (type == MediaType.MOVIE || episodesPerSeason.isNotEmpty())
@@ -66,50 +70,48 @@ fun ManualAddDialog(
         onDismiss = onDismiss,
         content = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                LabelledField(
-                    label = "Название",
-                    value = name,
-                    onValueChange = { name = it },
-                    fieldModifier = Modifier.testTag(ManualAddTags.NAME),
+                NameField(
+                    name = name,
+                    showError = showNameError,
+                    onValueChange = {
+                        name = it
+                        if (it.isNotBlank()) showNameError = false
+                    },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     MediaType.entries.forEach { option ->
                         DesignChip(
                             label = option.label,
                             selected = type == option,
-                            onClick = { type = option },
+                            onClick = {
+                                type = option
+                                if (!runtimeTouched) {
+                                    runtime = if (option == MediaType.MOVIE) "120" else "45"
+                                }
+                            },
                             modifier = Modifier.testTag(ManualAddTags.type(option)),
                         )
                     }
                 }
                 if (type == MediaType.TV) {
-                    Column {
-                        LabelledField(
-                            label = "Серий по сезонам",
-                            value = seasonsSpec,
-                            onValueChange = { seasonsSpec = it },
-                            fieldModifier = Modifier.testTag(ManualAddTags.SEASONS),
-                        )
-                        Text(
-                            text = if (episodesPerSeason.isEmpty()) {
-                                "Например: 12, 10, 8"
-                            } else {
-                                "${seasonsLabel(episodesPerSeason.size)}, всего " +
-                                    episodesLabel(episodesPerSeason.sum())
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .padding(start = 16.dp, top = 4.dp)
-                                .testTag(ManualAddTags.SEASONS_SUMMARY),
-                        )
-                    }
+                    SeasonsField(
+                        seasonsSpec = seasonsSpec,
+                        episodesPerSeason = episodesPerSeason,
+                        showError = showSeasonsError,
+                        onValueChange = {
+                            seasonsSpec = it
+                            if (parseSeasons(it).isNotEmpty()) showSeasonsError = false
+                        },
+                    )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LabelledField(
                         label = if (type == MediaType.TV) "Мин/серия" else "Длительность",
                         value = runtime,
-                        onValueChange = { runtime = it.filter(Char::isDigit).take(4) },
+                        onValueChange = {
+                            runtime = it.filter(Char::isDigit).take(4)
+                            runtimeTouched = true
+                        },
                         keyboardType = KeyboardType.Number,
                         modifier = Modifier.weight(1f),
                         fieldModifier = Modifier.testTag(ManualAddTags.RUNTIME),
@@ -128,15 +130,20 @@ fun ManualAddDialog(
         confirmButton = {
             DialogTextButton(
                 label = "Добавить",
-                enabled = valid,
+                enabled = true,
                 onClick = {
-                    onConfirm(
-                        name.trim(),
-                        type,
-                        episodesPerSeason,
-                        runtime.toIntOrNull() ?: 0,
-                        year.takeIf { it.length == 4 },
-                    )
+                    if (valid) {
+                        onConfirm(
+                            name.trim(),
+                            type,
+                            episodesPerSeason,
+                            runtime.toIntOrNull() ?: 0,
+                            year.takeIf { it.length == 4 && isValidYear(it) },
+                        )
+                    } else {
+                        showNameError = name.isBlank()
+                        showSeasonsError = type == MediaType.TV && episodesPerSeason.isEmpty()
+                    }
                 },
                 modifier = Modifier.testTag(ManualAddTags.CONFIRM),
             )
@@ -151,6 +158,70 @@ fun ManualAddDialog(
     )
 }
 
+@Composable
+private fun NameField(name: String, showError: Boolean, onValueChange: (String) -> Unit) {
+    Column {
+        LabelledField(
+            label = "Название",
+            value = name,
+            onValueChange = onValueChange,
+            isError = showError,
+            fieldModifier = Modifier.testTag(ManualAddTags.NAME),
+        )
+        if (showError) {
+            FieldError("Введи название")
+        }
+    }
+}
+
+@Composable
+private fun FieldError(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+    )
+}
+
+@Composable
+private fun SeasonsField(
+    seasonsSpec: String,
+    episodesPerSeason: List<Int>,
+    showError: Boolean,
+    onValueChange: (String) -> Unit,
+) {
+    Column {
+        LabelledField(
+            label = "Серий по сезонам",
+            value = seasonsSpec,
+            onValueChange = onValueChange,
+            isError = showError,
+            fieldModifier = Modifier.testTag(ManualAddTags.SEASONS),
+        )
+        if (showError) {
+            FieldError("Укажи число серий хотя бы для одного сезона")
+        }
+        Text(
+            text = "Через запятую, по одному числу на сезон — например: 12, 10, 8",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+        )
+        if (episodesPerSeason.isNotEmpty()) {
+            Text(
+                text = "${seasonsLabel(episodesPerSeason.size)}, всего " +
+                    episodesLabel(episodesPerSeason.sum()),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = 16.dp, top = 2.dp)
+                    .testTag(ManualAddTags.SEASONS_SUMMARY),
+            )
+        }
+    }
+}
+
 /** Outlined field with a caption above the value, as drawn in the mock. */
 @Composable
 private fun LabelledField(
@@ -161,11 +232,15 @@ private fun LabelledField(
     // The tag belongs on the editable node so performTextInput can reach it.
     fieldModifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
+    isError: Boolean = false,
 ) {
     Surface(
         shape = RoundedCornerShape(4.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        border = BorderStroke(
+            1.dp,
+            if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+        ),
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -194,3 +269,12 @@ internal fun parseSeasons(spec: String): List<Int> =
     spec.split(',', ';', ' ')
         .mapNotNull { it.trim().toIntOrNull() }
         .filter { it > 0 }
+
+private const val EARLIEST_YEAR = 1888
+private const val YEARS_INTO_THE_FUTURE = 5
+
+/** Rejects placeholder years like 0000/9999 typed into a 4-digit field. */
+internal fun isValidYear(year: String, currentYear: Int = Year.now().value): Boolean {
+    val value = year.toIntOrNull() ?: return false
+    return value in EARLIEST_YEAR..(currentYear + YEARS_INTO_THE_FUTURE)
+}

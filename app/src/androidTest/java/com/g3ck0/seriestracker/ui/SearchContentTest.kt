@@ -208,10 +208,32 @@ class SearchContentTest {
 
     @Test
     fun manualDialogRefusesAnEmptyName() {
-        compose.setThemedContent { SearchContent(state = SearchUiState()) }
+        var confirmed = false
+        compose.setThemedContent {
+            SearchContent(state = SearchUiState(), onAddManual = { _, _, _, _, _ -> confirmed = true })
+        }
 
         compose.onNodeWithTag(SearchTags.MANUAL_FAB).performClick()
-        compose.onNodeWithTag(ManualAddTags.CONFIRM).assertIsNotEnabled()
+        compose.onNodeWithTag(ManualAddTags.CONFIRM).performClick()
+
+        assertTrue(!confirmed)
+        compose.onNodeWithText("Введи название").assertIsDisplayed()
+    }
+
+    @Test
+    fun manualDialogRefusesEmptySeasonsForTv() {
+        var confirmed = false
+        compose.setThemedContent {
+            SearchContent(state = SearchUiState(), onAddManual = { _, _, _, _, _ -> confirmed = true })
+        }
+
+        compose.onNodeWithTag(SearchTags.MANUAL_FAB).performClick()
+        compose.onNodeWithTag(ManualAddTags.NAME).performTextInput("Своё шоу")
+        compose.onNodeWithTag(ManualAddTags.SEASONS).performTextReplacement("abc")
+        compose.onNodeWithTag(ManualAddTags.CONFIRM).performClick()
+
+        assertTrue(!confirmed)
+        compose.onNodeWithText("Укажи число серий хотя бы для одного сезона").assertIsDisplayed()
     }
 
     @Test
@@ -244,5 +266,25 @@ class SearchContentTest {
         // The supporting text is merged into the text field's semantics node.
         compose.onNodeWithTag(ManualAddTags.SEASONS_SUMMARY, useUnmergedTree = true)
             .assertTextEquals("3 сезона, всего 10 серий")
+    }
+
+    @Test
+    fun seasonsHintIsAlwaysVisible() {
+        compose.setThemedContent { SearchContent(state = SearchUiState()) }
+
+        compose.onNodeWithTag(SearchTags.MANUAL_FAB).performClick()
+
+        compose.onNodeWithText("Через запятую, по одному числу на сезон — например: 12, 10, 8")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun switchingToMovieSuggestsALongerDefaultRuntime() {
+        compose.setThemedContent { SearchContent(state = SearchUiState()) }
+
+        compose.onNodeWithTag(SearchTags.MANUAL_FAB).performClick()
+        compose.onNodeWithTag(ManualAddTags.type(MediaType.MOVIE)).performClick()
+
+        compose.onNodeWithTag(ManualAddTags.RUNTIME, useUnmergedTree = true).assertTextEquals("120")
     }
 }
