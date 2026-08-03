@@ -32,7 +32,10 @@ jobs:
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: write
-      pull-requests: read
+      # write, not read: the called workflow's `dependencies` job asks for write, and a
+      # caller must grant at least what every nested job requests — even one that is
+      # skipped on this event (that job runs on pull requests only).
+      pull-requests: write
       security-events: write
 
   publish:
