@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandLess
@@ -39,6 +44,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -47,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +73,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -106,6 +115,7 @@ object DetailTags {
     const val NOTES_OPEN = "detail:notesOpen"
     const val REFRESHING = "detail:refreshing"
     const val NOT_FOUND = "detail:notFound"
+    const val TOP_TITLE = "detail:topTitle"
     const val TAB_OVERVIEW = "detail:tab:overview"
     const val TAB_EPISODES = "detail:tab:episodes"
     const val OVERVIEW = "detail:overview"
@@ -114,6 +124,10 @@ object DetailTags {
     fun rating(value: Int) = "detail:rating:$value"
     fun seasonHeader(season: Int) = "detail:season:$season"
     fun seasonToggle(season: Int) = "detail:seasonToggle:$season"
+
+    /** Tick on a fully watched season; the bar under a started one. Neither exists otherwise. */
+    fun seasonDone(season: Int) = "detail:seasonDone:$season"
+    fun seasonProgress(season: Int) = "detail:seasonProgress:$season"
     fun episode(season: Int, episode: Int) = "detail:episode:$season:$episode"
 
     /** The row is clickable, the checkbox is toggleable — assertions need the latter. */
@@ -225,12 +239,18 @@ fun DetailContent(
     }
 
     val item = state.title
+    val listState = rememberLazyListState()
+    // The name is already in the header right below the bar, so the bar only takes it over
+    // once that header has scrolled away.
+    val titleInBar by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 }
+    }
 
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().statusBarsPadding()) {
                 DetailTopBar(
-                    name = item?.title?.name.orEmpty(),
+                    name = if (titleInBar) item?.title?.name.orEmpty() else "",
                     canRefresh = item?.title?.catalogId != null,
                     onBack = onBack,
                     onRefresh = onRefresh,
@@ -262,8 +282,13 @@ fun DetailContent(
                 val notes = rememberNotesState(initial = item.title.notes, onNotes = onNotes)
 
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize().testTag(DetailTags.LIST),
-                    contentPadding = PaddingValues(bottom = 48.dp),
+                    // Without the gesture-bar inset the last episode all but touches the pill.
+                    contentPadding = PaddingValues(
+                        bottom = 48.dp +
+                            WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                    ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item(key = "header", contentType = "header") { Header(item) }
@@ -386,6 +411,10 @@ private fun LazyListScope.seasonsSection(
     }
 }
 
+/**
+ * Bar above the list. [name] is empty until the header carrying the same name has scrolled
+ * away, so the title is never written twice on one screen.
+ */
 @Composable
 private fun DetailTopBar(
     name: String,
@@ -406,7 +435,7 @@ private fun DetailTopBar(
             lineHeight = 28.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).testTag(DetailTags.TOP_TITLE),
         )
         if (canRefresh) {
             BarIcon(Icons.Filled.Refresh, "Обновить", onRefresh, DetailTags.REFRESH)
@@ -980,6 +1009,13 @@ private fun NotesBlock(
     }
 }
 
+/**
+ * Season header.
+ *
+ * A finished season is painted on `secondaryContainer` and carries a tick, a started one
+ * shows a thin progress bar under its counter: scanning six seasons for the place you
+ * stopped should not mean reading six fractions.
+ */
 @Composable
 private fun SeasonHeader(
     number: Int,
@@ -990,10 +1026,20 @@ private fun SeasonHeader(
     onToggleExpand: () -> Unit,
     onToggleWatched: () -> Unit,
 ) {
+    val started = watchedCount > 0 && !allWatched
     Surface(
         onClick = onToggleExpand,
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = if (allWatched) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        contentColor = if (allWatched) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
@@ -1004,6 +1050,15 @@ private fun SeasonHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (allWatched) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = "Сезон просмотрен",
+                    modifier = Modifier
+                        .size(18.dp)
+                        .testTag(DetailTags.seasonDone(number)),
+                )
+            }
             Column(Modifier.weight(1f)) {
                 Text(
                     text = "Сезон $number",
@@ -1013,14 +1068,29 @@ private fun SeasonHeader(
                 Text(
                     text = "$watchedCount / $total",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (allWatched) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
+                if (started) {
+                    ProgressBar(
+                        progress = { watchedCount.toFloat() / total },
+                        height = 3.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .testTag(DetailTags.seasonProgress(number)),
+                    )
+                }
             }
             Surface(
                 onClick = onToggleWatched,
                 shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.onSurface,
+                color = androidx.compose.ui.graphics.Color.Transparent,
+                contentColor = LocalContentColor.current,
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 modifier = Modifier.height(32.dp).testTag(DetailTags.seasonToggle(number)),
             ) {
@@ -1034,7 +1104,11 @@ private fun SeasonHeader(
             Icon(
                 imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = if (expanded) "Свернуть" else "Развернуть",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (allWatched) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
         }
     }
@@ -1080,20 +1154,37 @@ private fun EpisodeRow(
                     )
                 }
             }
+            // The bare "≡✓" icon told nobody what it did — only TalkBack ever heard the
+            // description. The label is what makes the action readable, so it is spelled out.
             if (!episode.watched) {
                 Surface(
                     onClick = { onWatchUpTo(episode) },
-                    shape = RoundedCornerShape(22.dp),
+                    shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant,
+                    ),
                     modifier = Modifier
-                        .size(44.dp)
+                        .height(32.dp)
+                        .semantics { contentDescription = "Отметить всё до этой серии" }
                         .testTag(DetailTags.watchUpTo(episode.seasonNumber, episode.episodeNumber)),
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.PlaylistAddCheck,
-                            contentDescription = "Отметить всё до этой серии",
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            text = "до сюда",
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
                         )
                     }
                 }
