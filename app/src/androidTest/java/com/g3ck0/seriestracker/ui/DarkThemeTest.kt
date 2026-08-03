@@ -123,7 +123,16 @@ class DarkThemeTest {
     @Test
     fun statsRenderInDark() {
         compose.setThemedContent(darkTheme = true) {
-            StatsContent(WatchStats(watchedEpisodes = 5, episodeMinutes = 225, watchedMovies = 1, movieMinutes = 139))
+            StatsContent(
+                WatchStats(
+                    watchedEpisodes = 5,
+                    episodeMinutes = 225,
+                    watchedMovies = 1,
+                    movieMinutes = 139,
+                    seriesCount = 1,
+                    movieCount = 1,
+                )
+            )
         }
 
         compose.onNodeWithTag(StatsTags.TOTAL).assertIsDisplayed()

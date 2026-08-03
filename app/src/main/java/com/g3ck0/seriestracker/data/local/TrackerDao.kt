@@ -194,6 +194,26 @@ interface TrackerDao {
 
     @Query("SELECT status, COUNT(*) AS count FROM titles GROUP BY status")
     fun observeStatusCounts(): Flow<List<StatusCount>>
+
+    /**
+     * What is left to finish the titles in "Смотрю". The runtime falls back to the title's
+     * the same way [observeWatchedEpisodeMinutes] does, so an episode the backend gave no
+     * runtime for still counts. Only WATCHING: planned titles are not started yet and a
+     * dropped one is not going to be finished, so counting them answers a question nobody
+     * asked.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) AS episodes,
+            COALESCE(SUM(CASE WHEN e.runtimeMinutes > 0 THEN e.runtimeMinutes ELSE t.runtimeMinutes END), 0) AS minutes
+        FROM episodes e JOIN titles t ON t.id = e.titleId
+        WHERE e.watched = 0 AND t.status = 'WATCHING'
+        """
+    )
+    fun observeRemaining(): Flow<RemainingWatch>
 }
 
 data class StatusCount(val status: WatchStatus, val count: Int)
+
+/** Unwatched episodes of the titles in "Смотрю", and how long they run. */
+data class RemainingWatch(val episodes: Int = 0, val minutes: Int = 0)

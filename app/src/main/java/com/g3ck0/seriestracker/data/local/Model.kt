@@ -128,6 +128,12 @@ data class WatchStats(
     val seriesCount: Int = 0,
     val movieCount: Int = 0,
     val byStatus: Map<WatchStatus, Int> = emptyMap(),
+    /** Unwatched episodes of the titles in "Смотрю" — what is left to finish them. */
+    val remainingEpisodes: Int = 0,
+    val remainingMinutes: Int = 0,
 ) {
     val totalMinutes: Int get() = episodeMinutes + movieMinutes
+
+    /** True while the library holds nothing at all: the screen then has no numbers to show. */
+    val isEmpty: Boolean get() = seriesCount == 0 && movieCount == 0
 }

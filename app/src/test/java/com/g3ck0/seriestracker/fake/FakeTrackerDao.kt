@@ -2,6 +2,7 @@ package com.g3ck0.seriestracker.fake
 
 import com.g3ck0.seriestracker.data.local.EpisodeEntity
 import com.g3ck0.seriestracker.data.local.MediaType
+import com.g3ck0.seriestracker.data.local.RemainingWatch
 import com.g3ck0.seriestracker.data.local.StatusCount
 import com.g3ck0.seriestracker.data.local.TitleEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
@@ -236,6 +237,18 @@ class FakeTrackerDao : TrackerDao {
 
     override fun observeStatusCounts(): Flow<List<StatusCount>> = observe { db ->
         db.titles.groupingBy { it.status }.eachCount().map { StatusCount(it.key, it.value) }
+    }
+
+    override fun observeRemaining(): Flow<RemainingWatch> = observe { db ->
+        val watching = db.titles.filter { it.status == WatchStatus.WATCHING }.associateBy { it.id }
+        val left = db.episodes.filter { !it.watched && watching.containsKey(it.titleId) }
+        RemainingWatch(
+            episodes = left.size,
+            minutes = left.sumOf { episode ->
+                val title = watching[episode.titleId]
+                if (episode.runtimeMinutes > 0) episode.runtimeMinutes else title?.runtimeMinutes ?: 0
+            },
+        )
     }
 
     // --- test helpers ---
