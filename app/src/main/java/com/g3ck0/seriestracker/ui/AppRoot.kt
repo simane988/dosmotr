@@ -279,7 +279,7 @@ private fun AppNavHost(navController: NavHostController) {
             SearchScreen(onOpenTitle = { navController.navigate(Routes.detail(it)) })
         }
         composable(Routes.STATS) {
-            StatsScreen()
+            StatsScreen(onSearch = { navController.navigate(Routes.SEARCH) })
         }
         composable(
             route = Routes.DETAIL,

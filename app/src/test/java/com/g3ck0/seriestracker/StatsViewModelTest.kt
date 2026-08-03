@@ -54,6 +54,22 @@ class StatsViewModelTest {
     }
 
     @Test
+    fun `remaining counts only unwatched episodes of titles being watched`() = runTest {
+        dao.seedTitle(tvTitle(id = "tv_1", runtimeMinutes = 45, status = WatchStatus.WATCHING))
+        dao.seedEpisodes(episodesFor("tv_1", mapOf(1 to 4)))
+        dao.seedTitle(tvTitle(id = "tv_2", runtimeMinutes = 20, status = WatchStatus.PLANNED))
+        dao.seedEpisodes(episodesFor("tv_2", mapOf(1 to 3)))
+        repository.setEpisodeWatched("tv_1", 1, 1, watched = true)
+
+        StatsViewModel(repository).stats.test {
+            val stats = awaitUntil { it.watchedEpisodes == 1 }
+            assertEquals(3, stats.remainingEpisodes)
+            assertEquals(135, stats.remainingMinutes)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `status breakdown counts every title once`() = runTest {
         dao.seedTitle(tvTitle(id = "tv_1", status = WatchStatus.WATCHING))
         dao.seedTitle(tvTitle(id = "tv_2", status = WatchStatus.WATCHING))

@@ -2,6 +2,7 @@ package com.g3ck0.seriestracker.data.repository
 
 import com.g3ck0.seriestracker.data.local.EpisodeEntity
 import com.g3ck0.seriestracker.data.local.MediaType
+import com.g3ck0.seriestracker.data.local.RemainingWatch
 import com.g3ck0.seriestracker.data.local.TitleEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.TrackerDao
@@ -41,12 +42,15 @@ class TrackerRepository @Inject constructor(
         dao.observeWatchedEpisodeMinutes(),
         dao.observeWatchedMovieCount(),
         dao.observeWatchedMovieMinutes(),
+        // combine() tops out at five flows, so the library-wide counters travel as one
+        // value of their own.
         combine(
             dao.observeCountByType(MediaType.TV),
             dao.observeCountByType(MediaType.MOVIE),
             dao.observeStatusCounts(),
-        ) { series, movies, statuses ->
-            Triple(series, movies, statuses.associate { it.status to it.count })
+            dao.observeRemaining(),
+        ) { series, movies, statuses, remaining ->
+            LibraryCounts(series, movies, statuses.associate { it.status to it.count }, remaining)
         },
     ) { episodes, episodeMinutes, movies, movieMinutes, counts ->
         WatchStats(
@@ -54,9 +58,11 @@ class TrackerRepository @Inject constructor(
             episodeMinutes = episodeMinutes,
             watchedMovies = movies,
             movieMinutes = movieMinutes,
-            seriesCount = counts.first,
-            movieCount = counts.second,
-            byStatus = counts.third,
+            seriesCount = counts.seriesCount,
+            movieCount = counts.movieCount,
+            byStatus = counts.byStatus,
+            remainingEpisodes = counts.remaining.episodes,
+            remainingMinutes = counts.remaining.minutes,
         )
     }
 
@@ -293,6 +299,14 @@ class TrackerRepository @Inject constructor(
         const val DEFAULT_EPISODE_MINUTES = 45
     }
 }
+
+/** The half of [WatchStats] that counts titles rather than watched time. */
+private data class LibraryCounts(
+    val seriesCount: Int,
+    val movieCount: Int,
+    val byStatus: Map<WatchStatus, Int>,
+    val remaining: RemainingWatch,
+)
 
 /** A title as it was just before [TrackerRepository.delete] removed it. */
 data class DeletedTitle(val title: TitleEntity, val episodes: List<EpisodeEntity>)
