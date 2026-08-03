@@ -221,6 +221,22 @@ class SearchContentTest {
     }
 
     @Test
+    fun manualDialogRefusesEmptySeasonsForTv() {
+        var confirmed = false
+        compose.setThemedContent {
+            SearchContent(state = SearchUiState(), onAddManual = { _, _, _, _, _ -> confirmed = true })
+        }
+
+        compose.onNodeWithTag(SearchTags.MANUAL_FAB).performClick()
+        compose.onNodeWithTag(ManualAddTags.NAME).performTextInput("Своё шоу")
+        compose.onNodeWithTag(ManualAddTags.SEASONS).performTextReplacement("abc")
+        compose.onNodeWithTag(ManualAddTags.CONFIRM).performClick()
+
+        assertTrue(!confirmed)
+        compose.onNodeWithText("Укажи число серий хотя бы для одного сезона").assertIsDisplayed()
+    }
+
+    @Test
     fun manualDialogHidesSeasonsForMovies() {
         compose.setThemedContent { SearchContent(state = SearchUiState()) }
 

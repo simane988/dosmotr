@@ -60,6 +60,7 @@ fun ManualAddDialog(
     var runtimeTouched by remember { mutableStateOf(false) }
     var year by remember { mutableStateOf("") }
     var showNameError by remember { mutableStateOf(false) }
+    var showSeasonsError by remember { mutableStateOf(false) }
 
     val episodesPerSeason = parseSeasons(seasonsSpec)
     val valid = name.isNotBlank() && (type == MediaType.MOVIE || episodesPerSeason.isNotEmpty())
@@ -69,24 +70,14 @@ fun ManualAddDialog(
         onDismiss = onDismiss,
         content = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                LabelledField(
-                    label = "Название",
-                    value = name,
+                NameField(
+                    name = name,
+                    showError = showNameError,
                     onValueChange = {
                         name = it
                         if (it.isNotBlank()) showNameError = false
                     },
-                    isError = showNameError,
-                    fieldModifier = Modifier.testTag(ManualAddTags.NAME),
                 )
-                if (showNameError) {
-                    Text(
-                        text = "Введи название",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(start = 16.dp),
-                    )
-                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     MediaType.entries.forEach { option ->
                         DesignChip(
@@ -103,31 +94,15 @@ fun ManualAddDialog(
                     }
                 }
                 if (type == MediaType.TV) {
-                    Column {
-                        LabelledField(
-                            label = "Серий по сезонам",
-                            value = seasonsSpec,
-                            onValueChange = { seasonsSpec = it },
-                            fieldModifier = Modifier.testTag(ManualAddTags.SEASONS),
-                        )
-                        Text(
-                            text = "Через запятую, по одному числу на сезон — например: 12, 10, 8",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 16.dp, top = 4.dp),
-                        )
-                        if (episodesPerSeason.isNotEmpty()) {
-                            Text(
-                                text = "${seasonsLabel(episodesPerSeason.size)}, всего " +
-                                    episodesLabel(episodesPerSeason.sum()),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .padding(start = 16.dp, top = 2.dp)
-                                    .testTag(ManualAddTags.SEASONS_SUMMARY),
-                            )
-                        }
-                    }
+                    SeasonsField(
+                        seasonsSpec = seasonsSpec,
+                        episodesPerSeason = episodesPerSeason,
+                        showError = showSeasonsError,
+                        onValueChange = {
+                            seasonsSpec = it
+                            if (parseSeasons(it).isNotEmpty()) showSeasonsError = false
+                        },
+                    )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LabelledField(
@@ -167,6 +142,7 @@ fun ManualAddDialog(
                         )
                     } else {
                         showNameError = name.isBlank()
+                        showSeasonsError = type == MediaType.TV && episodesPerSeason.isEmpty()
                     }
                 },
                 modifier = Modifier.testTag(ManualAddTags.CONFIRM),
@@ -180,6 +156,70 @@ fun ManualAddDialog(
             )
         },
     )
+}
+
+@Composable
+private fun NameField(name: String, showError: Boolean, onValueChange: (String) -> Unit) {
+    Column {
+        LabelledField(
+            label = "Название",
+            value = name,
+            onValueChange = onValueChange,
+            isError = showError,
+            fieldModifier = Modifier.testTag(ManualAddTags.NAME),
+        )
+        if (showError) {
+            FieldError("Введи название")
+        }
+    }
+}
+
+@Composable
+private fun FieldError(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+    )
+}
+
+@Composable
+private fun SeasonsField(
+    seasonsSpec: String,
+    episodesPerSeason: List<Int>,
+    showError: Boolean,
+    onValueChange: (String) -> Unit,
+) {
+    Column {
+        LabelledField(
+            label = "Серий по сезонам",
+            value = seasonsSpec,
+            onValueChange = onValueChange,
+            isError = showError,
+            fieldModifier = Modifier.testTag(ManualAddTags.SEASONS),
+        )
+        if (showError) {
+            FieldError("Укажи число серий хотя бы для одного сезона")
+        }
+        Text(
+            text = "Через запятую, по одному числу на сезон — например: 12, 10, 8",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+        )
+        if (episodesPerSeason.isNotEmpty()) {
+            Text(
+                text = "${seasonsLabel(episodesPerSeason.size)}, всего " +
+                    episodesLabel(episodesPerSeason.sum()),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = 16.dp, top = 2.dp)
+                    .testTag(ManualAddTags.SEASONS_SUMMARY),
+            )
+        }
+    }
 }
 
 /** Outlined field with a caption above the value, as drawn in the mock. */
