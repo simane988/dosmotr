@@ -137,6 +137,22 @@ val FloatingFabClearance: Dp
         return if (nav.fabFitsBeside) systemBars + NavGap else nav.space + NavGap
     }
 
+/** Height of [com.g3ck0.seriestracker.ui.common.ExtendedActionButton], the corner FAB. */
+val ExtendedActionButtonHeight = 56.dp
+
+/**
+ * Bottom padding for scrollable content a corner FAB is drawn over. Clearing the pill is
+ * not enough: the FAB stands its own height above its margin, so with only
+ * [FloatingNavClearance] the last card ends up under the button — which is what covered
+ * the bottom-right corner of the last library card.
+ */
+val FloatingFabContentClearance: Dp
+    @Composable get() = fabContentClearance(FloatingNavClearance, FloatingFabClearance)
+
+/** The arithmetic of [FloatingFabContentClearance], split out so it can be unit-tested. */
+internal fun fabContentClearance(navClearance: Dp, fabClearance: Dp): Dp =
+    maxOf(navClearance, fabClearance + ExtendedActionButtonHeight + NavGap)
+
 /** Incoming screen is slightly slower than the outgoing one, so they never both fade out. */
 private const val ENTER_MILLIS = 260
 private const val EXIT_MILLIS = 200

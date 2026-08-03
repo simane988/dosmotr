@@ -31,10 +31,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -69,11 +71,12 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.g3ck0.seriestracker.data.local.MediaType
+import com.g3ck0.seriestracker.data.local.TitleEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.backup.BackupRepository.ImportMode
 import com.g3ck0.seriestracker.ui.FloatingFabClearance
-import com.g3ck0.seriestracker.ui.FloatingNavClearance
+import com.g3ck0.seriestracker.ui.FloatingFabContentClearance
 import com.g3ck0.seriestracker.ui.about.AboutDialog
 import com.g3ck0.seriestracker.ui.backup.BackupViewModel
 import com.g3ck0.seriestracker.ui.common.ClearFocusWhenDialogCloses
@@ -104,6 +107,9 @@ object LibraryTags {
     fun markNext(titleId: String) = "library:markNext:$titleId"
     fun nextEpisode(titleId: String) = "library:next:$titleId"
     fun overflow(titleId: String) = "library:overflow:$titleId"
+    fun rating(titleId: String) = "library:rating:$titleId"
+    fun notes(titleId: String) = "library:notes:$titleId"
+    fun overview(titleId: String) = "library:overview:$titleId"
 
     /** Menu entries repeat the filter-chip labels, so they need their own handles. */
     fun statusItem(status: WatchStatus) = "library:menu:${status.name}"
@@ -282,7 +288,9 @@ fun LibraryContent(
                             start = 16.dp,
                             end = 16.dp,
                             top = 8.dp,
-                            bottom = FloatingNavClearance,
+                            // The FAB is drawn over this list, not beside it, so the pill
+                            // clearance alone leaves the last card under the button.
+                            bottom = FloatingFabContentClearance,
                         ),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.testTag(LibraryTags.LIST),
@@ -467,16 +475,23 @@ private fun TitleCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
-                        text = listOfNotNull(
-                            title.mediaType.label,
-                            title.year,
-                            title.status.label,
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
+                    MetaLine(title)
+
+                    // A movie card is as tall as a series one — the poster sets that — but
+                    // carries three lines instead of six. The synopsis is what the space is
+                    // for; without it the bottom half of the card stays blank.
+                    if (title.isMovie && title.overview.isNotBlank()) {
+                        Text(
+                            text = title.overview,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .padding(top = 4.dp)
+                                .testTag(LibraryTags.overview(title.id)),
+                        )
+                    }
                     Spacer(Modifier.weight(1f))
 
                     if (title.isMovie) {
@@ -579,6 +594,68 @@ private fun TitleCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * "Сериал · 2017 · Смотрю" plus the two things that were only visible inside a title:
+ * the user's own score and whether there is a note on it.
+ *
+ * A movie shows no status while it is "Смотрю": the card already says "Не просмотрен"
+ * right below, and a movie is watched or it is not — the pair read as a contradiction.
+ * The other four statuses are choices the user made by hand and stay on the card.
+ */
+@Composable
+private fun MetaLine(title: TitleEntity) {
+    val statusLabel = title.status
+        .takeUnless { title.isMovie && it == WatchStatus.WATCHING }
+        ?.label
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.padding(top = 2.dp),
+    ) {
+        Text(
+            text = listOfNotNull(title.mediaType.label, title.year, statusLabel)
+                .joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            // fill = false: the badges keep their width instead of being pushed out by a
+            // long metadata line, which is what would drop them off a narrow card.
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        title.userRating?.let { rating ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = "Моя оценка",
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(14.dp),
+                )
+                // The tag sits on the number, not on the Row: the Row merges nothing, so
+                // a tag on it has no text for a test to read.
+                Text(
+                    text = rating.toString(),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.testTag(LibraryTags.rating(title.id)),
+                )
+            }
+        }
+        if (title.notes.isNotBlank()) {
+            Icon(
+                Icons.Filled.EditNote,
+                contentDescription = "Есть заметка",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp).testTag(LibraryTags.notes(title.id)),
+            )
         }
     }
 }
