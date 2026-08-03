@@ -119,9 +119,10 @@ object LibraryTags {
     const val MENU_TITLE = "library:menu:title"
 
     // Chips wrap onto as many rows as they need; tags address them by identity.
-    const val CHIP_ALL = "library:chip:all"
     fun statusChip(status: WatchStatus) = "library:chip:${status.name}"
-    fun mediaChip(type: MediaType) = "library:chip:${type.name}"
+
+    /** One chip cycles through the media types, so it keeps one tag whatever it shows. */
+    const val CHIP_TYPE = "library:chip:type"
 }
 
 /** Wires the ViewModel to [LibraryContent]; all UI lives in the stateless half. */
@@ -251,32 +252,27 @@ fun LibraryContent(
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().statusBarsPadding()) {
-                LargeHeader(
-                    title = "Моя библиотека",
-                    onExport = onExport,
-                    onImport = onImport,
-                    onAbout = { aboutOpen = true },
-                )
-
-                if (state.totalCount > 0) {
-                    PillSearchField(
-                        value = state.filters.query,
-                        onValueChange = onQueryChange,
-                        placeholder = "Фильтр по названию",
-                        fieldModifier = Modifier.testTag(LibraryTags.FILTER_QUERY),
-                        modifier = Modifier
-                            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
-                    )
-
-                    FilterRow(
-                        selectedStatus = state.filters.status,
-                        selectedType = state.filters.mediaType,
-                        onStatus = onStatusFilter,
-                        onType = onMediaFilter,
+                // The filter block is the first item of the list rather than a band above
+                // it: as a fixed band it cost a third of the screen on every frame, and
+                // scrolled away it costs that only at the top of the list.
+                val topBar: @Composable (Modifier) -> Unit = { modifier ->
+                    LibraryTopBar(
+                        state = state,
+                        onQueryChange = onQueryChange,
+                        onStatusFilter = onStatusFilter,
+                        onMediaFilter = onMediaFilter,
+                        onExport = onExport,
+                        onImport = onImport,
+                        onAbout = { aboutOpen = true },
+                        modifier = modifier,
                     )
                 }
 
                 if (state.items.isEmpty() && !state.loading) {
+                    // Nothing to scroll, so the bar stays put — and it has to be drawn
+                    // here too, or an empty library would have no menu and no way to
+                    // import a backup.
+                    topBar(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     EmptyLibrary(
                         hasAnything = state.totalCount > 0,
                         onSearch = onSearch,
@@ -295,6 +291,7 @@ fun LibraryContent(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.testTag(LibraryTags.LIST),
                     ) {
+                        item(key = "topBar", contentType = "topBar") { topBar(Modifier) }
                         items(state.items, key = { it.title.id }, contentType = { "title" }) { item ->
                             TitleCard(
                                 item = item,
@@ -330,66 +327,101 @@ fun LibraryContent(
     }
 }
 
-/** Large top app bar from the mock: 32sp title, menu button on its own container. */
+/**
+ * Filter field, menu button and chips — everything above the cards. The screen title is
+ * gone: the floating navigation pill already names the tab, and at 32sp the heading cost
+ * 72 dp that the library needs for its first card.
+ */
 @Composable
-private fun LargeHeader(
-    title: String,
+private fun LibraryTopBar(
+    state: LibraryUiState,
+    onQueryChange: (String) -> Unit,
+    onStatusFilter: (WatchStatus?) -> Unit,
+    onMediaFilter: (MediaType?) -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+    onAbout: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // The filter is consulted far less often than the cards are read, so it shares
+            // its row with the menu instead of taking one of its own.
+            if (state.totalCount > 0) {
+                PillSearchField(
+                    value = state.filters.query,
+                    onValueChange = onQueryChange,
+                    placeholder = "Фильтр по названию",
+                    fieldModifier = Modifier.testTag(LibraryTags.FILTER_QUERY),
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                // No library to filter, but the menu still has to be reachable: import is
+                // needed exactly when there is nothing here yet.
+                Spacer(Modifier.weight(1f))
+            }
+            LibraryMenuButton(onExport = onExport, onImport = onImport, onAbout = onAbout)
+        }
+
+        if (state.totalCount > 0) {
+            FilterRow(
+                selectedStatus = state.filters.status,
+                selectedType = state.filters.mediaType,
+                onStatus = onStatusFilter,
+                onType = onMediaFilter,
+            )
+        }
+    }
+}
+
+/** Export / import / about, in the filter row rather than in a header of its own. */
+@Composable
+private fun LibraryMenuButton(
     onExport: () -> Unit,
     onImport: () -> Unit,
     onAbout: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 8.dp, end = 8.dp, top = 8.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Text(
-            text = title,
-            fontSize = 32.sp,
-            lineHeight = 40.sp,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-        )
-        Box {
-            Surface(
-                onClick = { menuOpen = true },
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(48.dp).testTag(LibraryTags.TOP_MENU),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "Меню")
-                }
+    Box {
+        Surface(
+            onClick = { menuOpen = true },
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(48.dp).testTag(LibraryTags.TOP_MENU),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "Меню")
             }
-            DropdownMenu(
-                expanded = menuOpen,
-                onDismissRequest = { menuOpen = false },
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Экспорт в JSON") },
-                    leadingIcon = { Icon(Icons.Filled.FileDownload, contentDescription = null) },
-                    onClick = { menuOpen = false; onExport() },
-                    modifier = Modifier.testTag(LibraryTags.EXPORT),
-                )
-                DropdownMenuItem(
-                    text = { Text("Импорт из JSON") },
-                    leadingIcon = { Icon(Icons.Filled.FileUpload, contentDescription = null) },
-                    onClick = { menuOpen = false; onImport() },
-                    modifier = Modifier.testTag(LibraryTags.IMPORT),
-                )
-                DropdownMenuItem(
-                    text = { Text("О приложении") },
-                    leadingIcon = { Icon(Icons.Filled.Info, contentDescription = null) },
-                    onClick = { menuOpen = false; onAbout() },
-                    modifier = Modifier.testTag(LibraryTags.ABOUT),
-                )
-            }
+        }
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            DropdownMenuItem(
+                text = { Text("Экспорт в JSON") },
+                leadingIcon = { Icon(Icons.Filled.FileDownload, contentDescription = null) },
+                onClick = { menuOpen = false; onExport() },
+                modifier = Modifier.testTag(LibraryTags.EXPORT),
+            )
+            DropdownMenuItem(
+                text = { Text("Импорт из JSON") },
+                leadingIcon = { Icon(Icons.Filled.FileUpload, contentDescription = null) },
+                onClick = { menuOpen = false; onImport() },
+                modifier = Modifier.testTag(LibraryTags.IMPORT),
+            )
+            DropdownMenuItem(
+                text = { Text("О приложении") },
+                leadingIcon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                onClick = { menuOpen = false; onAbout() },
+                modifier = Modifier.testTag(LibraryTags.ABOUT),
+            )
         }
     }
 }
@@ -403,21 +435,17 @@ private fun FilterRow(
     onStatus: (WatchStatus?) -> Unit,
     onType: (MediaType?) -> Unit,
 ) {
-    // Wrapping, not a horizontal scroller: eight chips do not fit on a 411 dp screen, and
-    // in a scroller "Фильм" is off the right edge until the user thinks to swipe for it.
+    // Wrapping, not a horizontal scroller: the chips do not fit on one 411 dp row, and in
+    // a scroller the last of them is off the right edge until the user thinks to swipe.
     FlowRow(
         Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+            .padding(top = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        DesignChip(
-            label = "Все",
-            selected = selectedStatus == null && selectedType == null,
-            onClick = { onStatus(null); onType(null) },
-            modifier = Modifier.testTag(LibraryTags.CHIP_ALL),
-        )
+        // No "Все" chip: tapping the selected chip already clears the filter, and eight
+        // chips wrapped onto three rows where six fit on two.
         WatchStatus.entries.forEach { status ->
             DesignChip(
                 label = status.label,
@@ -426,15 +454,22 @@ private fun FilterRow(
                 modifier = Modifier.testTag(LibraryTags.statusChip(status)),
             )
         }
-        MediaType.entries.forEach { type ->
-            DesignChip(
-                label = type.label,
-                selected = selectedType == type,
-                onClick = { onType(if (selectedType == type) null else type) },
-                modifier = Modifier.testTag(LibraryTags.mediaChip(type)),
-            )
-        }
+        // One chip for both media types, cycling series → movies → everything: they are
+        // two halves of one library, so only one of them can ever be selected anyway.
+        DesignChip(
+            label = selectedType?.label ?: "Тип",
+            selected = selectedType != null,
+            onClick = { onType(selectedType.nextFilter()) },
+            modifier = Modifier.testTag(LibraryTags.CHIP_TYPE),
+        )
     }
+}
+
+/** null → TV → MOVIE → null, the order the chip walks through on each tap. */
+private fun MediaType?.nextFilter(): MediaType? = when (this) {
+    null -> MediaType.TV
+    MediaType.TV -> MediaType.MOVIE
+    MediaType.MOVIE -> null
 }
 
 @Composable
