@@ -242,6 +242,12 @@ fun DetailContent(
                 val hasEpisodes = state.seasons.isNotEmpty()
                 val showOverview = !hasEpisodes || tab == DetailTab.OVERVIEW
 
+                // Hoisted above the LazyColumn on purpose: "notes" is an `item`, so it is
+                // disposed by an ordinary scroll or an Обзор/Серии tab switch, not just by
+                // leaving the screen. State living inside the item was reinitialised (and
+                // its flush-on-dispose fired) on every such scroll.
+                val notes = rememberNotesState(initial = item.title.notes, onNotes = onNotes)
+
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().testTag(DetailTags.LIST),
                     contentPadding = PaddingValues(bottom = 48.dp),
@@ -276,7 +282,17 @@ fun DetailContent(
                             RatingPicker(rating = item.title.userRating, onSelect = onRating)
                         }
                         item(key = "notes", contentType = "notes") {
-                            NotesBlock(initial = item.title.notes, onSave = onNotes)
+                            NotesBlock(
+                                initial = notes.committed,
+                                open = notes.open,
+                                text = notes.text,
+                                committed = notes.committed,
+                                focusRequester = notes.focusRequester,
+                                onOpen = notes.onOpen,
+                                onTextChange = notes.onTextChange,
+                                onSave = notes.onSave,
+                                onCancel = notes.onCancel,
+                            )
                         }
                     } else {
                         state.seasons.forEach { season ->
@@ -674,19 +690,102 @@ private fun OutlinedPill(label: String, onClick: () -> Unit, modifier: Modifier 
     }
 }
 
-/** Notes are collapsed behind a button until the user wants them. */
-@OptIn(ExperimentalFoundationApi::class)
+private class NotesState(
+    val open: Boolean,
+    val text: String,
+    val committed: String,
+    val focusRequester: FocusRequester,
+    val onOpen: () -> Unit,
+    val onTextChange: (String) -> Unit,
+    val onSave: () -> Unit,
+    val onCancel: () -> Unit,
+)
+
+/**
+ * Owns `NotesBlock`'s state, hoisted to a level that survives the block's own disposal.
+ *
+ * `NotesBlock` sits inside a `LazyColumn` `item`, which is disposed by an ordinary scroll
+ * or a tab switch, not only by leaving the screen. State (and the focus/flush effects
+ * that depend on it) living inside the block itself used to be reinitialised — and its
+ * flush-on-dispose fired — on every such scroll, closing the field and committing a
+ * draft the user never asked to save.
+ */
 @Composable
-private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
-    // Saveable, not remembered: the block is a LazyColumn item, so scrolling it out of
-    // view (or rotating) disposes it, and a plain remember would drop a half-typed note.
+private fun rememberNotesState(initial: String, onNotes: (String) -> Unit): NotesState {
     var open by rememberSaveable(initial) { mutableStateOf(false) }
     var text by rememberSaveable(initial) { mutableStateOf(initial) }
     // What the database is known to hold. `initial` only catches up once the write has
-    // travelled back through Room, which is what would otherwise make an explicit save
-    // look unsaved to the flush below.
+    // travelled back through Room, which would otherwise make an explicit save look
+    // unsaved to the flush below.
     var committed by rememberSaveable(initial) { mutableStateOf(initial) }
+    // One-shot: consumed by the focus effect below, so re-entering composition with
+    // `open` already true (e.g. scrolling the block back into view) does not raise the
+    // keyboard again on its own.
+    var focusPending by rememberSaveable(initial) { mutableStateOf(false) }
 
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(focusPending) {
+        if (focusPending) {
+            focusRequester.requestFocus()
+            focusPending = false
+        }
+    }
+
+    // Leaving the screen with unsaved text used to lose it silently. Flush on disposal
+    // instead: cancelling puts the committed text back first, so it writes nothing then.
+    // Keyed on Unit at this composable's own level — as long as its caller does not sit
+    // inside the LazyColumn, disposal means the screen itself going away.
+    val latestText by rememberUpdatedState(text)
+    val latestCommitted by rememberUpdatedState(committed)
+    val latestOnNotes by rememberUpdatedState(onNotes)
+    DisposableEffect(Unit) {
+        onDispose {
+            if (latestText != latestCommitted) latestOnNotes(latestText)
+        }
+    }
+
+    fun collapse() {
+        focusManager.clearFocus(force = true)
+        keyboard?.hide()
+        open = false
+    }
+
+    return NotesState(
+        open = open,
+        text = text,
+        committed = committed,
+        focusRequester = focusRequester,
+        onOpen = { open = true; focusPending = true },
+        onTextChange = { text = it },
+        onSave = { onNotes(text); committed = text; collapse() },
+        onCancel = { text = committed; collapse() },
+    )
+}
+
+/**
+ * Notes are collapsed behind a button until the user wants them.
+ *
+ * Stateless by design: this composable sits inside a `LazyColumn` `item`, which is
+ * disposed by an ordinary scroll, not only by leaving the screen — so `open`/`text` and
+ * the focus/flush effects that depend on them live in [rememberNotesState] instead,
+ * called by the caller above the `LazyColumn`.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NotesBlock(
+    initial: String,
+    open: Boolean,
+    text: String,
+    committed: String,
+    focusRequester: FocusRequester,
+    onOpen: () -> Unit,
+    onTextChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+) {
     // The block sits at the very bottom of the overview, so with the keyboard open it
     // is below the shrunken viewport: focusing the field, and later the save row
     // appearing under it, both have to scroll the list to it.
@@ -697,34 +796,6 @@ private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
         if (edited) bringIntoView.bringIntoView()
     }
 
-    val focusRequester = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
-    val keyboard = LocalSoftwareKeyboardController.current
-
-    // Opening the block is the request to type in it, so raise the keyboard right away
-    // instead of asking for a second tap. This only fires on the open transition, so it
-    // does not fight ClearFocusWhenDialogCloses, which clears focus after a dialog.
-    LaunchedEffect(open) {
-        if (open) focusRequester.requestFocus()
-    }
-
-    // Leaving the screen with unsaved text used to lose it silently. Flush on disposal
-    // instead: cancelling puts the committed text back first, so it writes nothing then.
-    val latestText by rememberUpdatedState(text)
-    val latestCommitted by rememberUpdatedState(committed)
-    val latestOnSave by rememberUpdatedState(onSave)
-    DisposableEffect(Unit) {
-        onDispose {
-            if (latestText != latestCommitted) latestOnSave(latestText)
-        }
-    }
-
-    fun collapse() {
-        focusManager.clearFocus(force = true)
-        keyboard?.hide()
-        open = false
-    }
-
     Column(
         Modifier
             .padding(horizontal = 16.dp)
@@ -732,7 +803,7 @@ private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
     ) {
         if (!open) {
             Surface(
-                onClick = { open = true },
+                onClick = onOpen,
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
@@ -774,7 +845,7 @@ private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
                     )
                     BasicTextField(
                         value = text,
-                        onValueChange = { text = it },
+                        onValueChange = onTextChange,
                         textStyle = LocalTextStyle.current.copy(
                             fontSize = 14.sp,
                             lineHeight = 20.sp,
@@ -803,12 +874,12 @@ private fun NotesBlock(initial: String, onSave: (String) -> Unit) {
                 FilledPill(
                     label = "Сохранить",
                     enabled = text != committed,
-                    onClick = { onSave(text); committed = text; collapse() },
+                    onClick = onSave,
                     modifier = Modifier.testTag(DetailTags.NOTES_SAVE),
                 )
                 DialogTextButton(
                     label = "Отмена",
-                    onClick = { text = committed; collapse() },
+                    onClick = onCancel,
                     modifier = Modifier.testTag(DetailTags.NOTES_CANCEL),
                 )
             }
