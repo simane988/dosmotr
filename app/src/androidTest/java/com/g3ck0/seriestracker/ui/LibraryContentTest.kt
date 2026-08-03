@@ -1,5 +1,9 @@
 package com.g3ck0.seriestracker.ui
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -565,13 +569,20 @@ class LibraryContentTest {
      */
     @Test
     fun theFabDropsToTheBottomEdgeWhenThePillLeavesRoomBesideIt() {
-        showLibraryWith(FloatingNavMetrics(space = 104.dp, freeWidth = 598.dp))
+        var systemBars = 0.dp
+        showLibraryWith(FloatingNavMetrics(space = 104.dp, freeWidth = 598.dp)) {
+            systemBars = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        }
 
-        // Not a literal margin: the FAB clears the system bars, which are 24 dp of gesture
-        // bar on one device and a 48 dp button bar on another. What the test is about is
-        // that it is not lifted a pill's height (104 dp) up.
+        // The bar itself is not a fixed height — 24 dp of gesture bar on one device, a
+        // 48 dp button bar on the emulator — so the expected gap is measured, not spelt
+        // out: it is exactly the bar plus the 16 dp gap the FAB keeps off it. Anything
+        // lifted over the pill lands 104 dp higher and fails this.
         val gap = fabBottomGap()
-        assertTrue("FAB sits $gap above the bottom edge", gap < 104.dp)
+        assertTrue(
+            "FAB sits $gap above the bottom edge, over $systemBars of system bars",
+            gap <= systemBars + 16.dp + tolerance,
+        )
     }
 
     /** Portrait: the pill spans the width, so the FAB has to clear it vertically. */
@@ -609,13 +620,17 @@ class LibraryContentTest {
         )
     }
 
-    private fun showLibraryWith(metrics: FloatingNavMetrics) {
+    private fun showLibraryWith(metrics: FloatingNavMetrics, onComposed: @Composable () -> Unit = {}) {
         compose.setThemedContent {
             CompositionLocalProvider(LocalFloatingNav provides metrics) {
+                onComposed()
                 LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
             }
         }
     }
+
+    /** Rounding between measured insets and laid-out pixels, nothing more. */
+    private val tolerance = 2.dp
 
     /** Distance from the bottom of the FAB to the bottom of the screen. */
     private fun fabBottomGap(): Dp =
