@@ -316,6 +316,8 @@ scripts/grind.sh --task bug-4    # start here, then carry on picking
 scripts/grind.sh --once          # one task, then stop
 scripts/grind.sh --no-review     # straight to merge, no review rounds
 scripts/grind.sh --rounds 5      # more review rounds before it gives up
+scripts/grind.sh --bugs          # only todo/bugs/ (--features, or --only bugs|features)
+scripts/grind.sh --in-order      # backlog order instead of the picker's ranking
 scripts/grind.sh --model-complex opus --model-simple sonnet --model-review sonnet
 ```
 
@@ -345,8 +347,17 @@ which the phase-1 check then reports as "opened no PR".
 
 - **Picking** is one tool-less `claude -p` call per iteration, fed the open ids and
   `todo/README.md`, answering `<id> <simple|complex>`. It reruns before every task so the
-  choice accounts for what the last one changed. An unusable answer falls back to backlog
-  order, bugs first.
+  choice accounts for what the last one changed. An unusable answer, or an id outside the
+  list it was given, falls back to backlog order, bugs first.
+- **`--bugs` / `--features` narrow the backlog** (`--only bugs|features` is the same thing
+  spelled out): the picker only sees that directory, and so does the "nothing left to do"
+  check. `--task` still reaches either directory — naming an id explicitly outranks the
+  filter.
+- **`--in-order` replaces the ranking with backlog order** — bugs before features, then by
+  number, so `feature-20` is followed by `feature-21`. Ordering is `sort -V` per directory,
+  not `ls`, which would put `feature-9` after `feature-21`. The task is still sized by its
+  own one-word `claude -p` call, so the per-job model choice survives; only the "what is
+  most valuable" question is dropped.
 - **The model is per job, not per run.** The picker and every reviewer are Sonnet; the
   author session is Sonnet on a `simple` task and Opus on a `complex` one — the size comes
   from the same call that picks the task, so sizing costs nothing extra. Anything
