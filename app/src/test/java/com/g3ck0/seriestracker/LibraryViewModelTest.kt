@@ -3,6 +3,7 @@ package com.g3ck0.seriestracker
 import app.cash.turbine.test
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.WatchStatus
+import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import com.g3ck0.seriestracker.fake.FakeCatalogApi
 import com.g3ck0.seriestracker.fake.FakeSettingsStore
@@ -10,9 +11,12 @@ import com.g3ck0.seriestracker.fake.FakeTrackerDao
 import com.g3ck0.seriestracker.fake.MainDispatcherRule
 import com.g3ck0.seriestracker.fake.awaitUntil
 import com.g3ck0.seriestracker.fake.episodesFor
+import com.g3ck0.seriestracker.fake.movieResult
 import com.g3ck0.seriestracker.fake.movieTitle
+import com.g3ck0.seriestracker.fake.tvResult
 import com.g3ck0.seriestracker.fake.tvTitle
 import com.g3ck0.seriestracker.ui.library.LibraryViewModel
+import java.io.IOException
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -30,7 +34,8 @@ class LibraryViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val dao = FakeTrackerDao()
-    private val repository = TrackerRepository(dao, FakeCatalogApi(), "key")
+    private val api = FakeCatalogApi()
+    private val repository = TrackerRepository(dao, api, "key")
     private val settings = FakeSettingsStore()
 
     private fun viewModel() = LibraryViewModel(repository, settings)
@@ -389,5 +394,132 @@ class LibraryViewModelTest {
             assertTrue(settings.storedNotificationsAsked)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    // --- feature-15: what an empty library offers ---
+
+    private fun suggestion(id: Int = 1399, name: String = "Game of Thrones") = SearchItem(
+        catalogId = id,
+        mediaType = MediaType.TV,
+        name = name,
+        overview = "",
+        posterPath = "/p$id.jpg",
+        backdropPath = null,
+        year = "2011",
+        voteAverage = 8.4,
+    )
+
+    @Test
+    fun `an empty library is offered what is trending`() = runTest {
+        api.trendingResults = listOf(tvResult(1, "Dark"), movieResult(2, "Fight Club"))
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            vm.loadSuggestions()
+            val offered = awaitUntil { it.suggestions.isNotEmpty() }
+            assertEquals(listOf("Dark", "Fight Club"), offered.suggestions.map { it.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /**
+     * The whole point of loading lazily: every cold start with a library in it would
+     * otherwise cost a request nobody sees the result of.
+     */
+    @Test
+    fun `trending is never requested while the library has titles`() = runTest {
+        seedLibrary()
+        api.trendingResults = listOf(tvResult(1, "Dark"))
+        val vm = viewModel()
+
+        vm.loadSuggestions()
+        advanceUntilIdle()
+
+        assertEquals(0, api.trendingCalls)
+    }
+
+    @Test
+    fun `trending is asked for once, however often the empty state appears`() = runTest {
+        api.trendingResults = listOf(tvResult(1, "Dark"))
+        val vm = viewModel()
+
+        vm.loadSuggestions()
+        advanceUntilIdle()
+        vm.loadSuggestions()
+        advanceUntilIdle()
+
+        assertEquals(1, api.trendingCalls)
+    }
+
+    /** No backend configured: the row is not worth a message, and not worth a call either. */
+    @Test
+    fun `without a backend nothing is requested`() = runTest {
+        val vm = LibraryViewModel(TrackerRepository(dao, api, ""), settings)
+
+        vm.loadSuggestions()
+        advanceUntilIdle()
+
+        assertEquals(0, api.trendingCalls)
+        assertTrue(vm.state.value.suggestions.isEmpty())
+    }
+
+    /** A failed request costs the row, nothing else — and it may be retried later. */
+    @Test
+    fun `a failed trending request leaves the screen without suggestions`() = runTest {
+        api.failure = IOException("offline")
+        val vm = viewModel()
+
+        vm.state.test {
+            val loaded = awaitUntil { !it.loading }
+            assertTrue(loaded.suggestions.isEmpty())
+            assertNull(loaded.message)
+
+            vm.loadSuggestions()
+            advanceUntilIdle()
+            // Nothing at all reaches the screen: no row, and no error line either.
+            expectNoEvents()
+
+            api.failure = null
+            api.trendingResults = listOf(tvResult(1, "Dark"))
+            vm.loadSuggestions()
+            assertEquals(1, awaitUntil { it.suggestions.isNotEmpty() }.suggestions.size)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /**
+     * The detail screen reads the database, so a suggestion has to be added before it can
+     * be opened — the id only arrives once that worked.
+     */
+    @Test
+    fun `tapping a suggestion adds the title and opens it`() = runTest {
+        val vm = viewModel()
+
+        vm.openTitle.test {
+            vm.addSuggestion(suggestion())
+            assertEquals("tv_1399", awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals("Game of Thrones", dao.getTitle("tv_1399")?.name)
+    }
+
+    @Test
+    fun `a manual entry made from the empty library is stored`() = runTest {
+        val vm = viewModel()
+
+        vm.state.test {
+            awaitUntil { !it.loading }
+            vm.addManual("Мой сериал", MediaType.TV, listOf(3), runtimeMinutes = 30, year = "2024")
+            assertEquals(
+                "«Мой сериал» добавлен вручную",
+                awaitUntil { it.message != null }.message?.text,
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        val stored = dao.titles().single()
+        assertTrue(stored.id.startsWith("local_"))
+        assertEquals(3, dao.episodes().count { it.titleId == stored.id })
     }
 }
