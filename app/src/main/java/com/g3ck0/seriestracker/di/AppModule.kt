@@ -24,11 +24,19 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
+    /**
+     * Deliberately without `fallbackToDestructiveMigration()`: that recreates the database
+     * on any schema change, which for a shipped build means deleting the library of
+     * everyone who updates. Every version bump writes a real migration instead.
+     */
+    // Room's addMigrations is vararg, so the spread is the only way to pass the array; it
+    // copies a handful of entries once per process.
+    @Suppress("SpreadOperator")
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.NAME)
-            .fallbackToDestructiveMigration()
+            .addMigrations(*AppDatabase.MIGRATIONS)
             .build()
 
     @Provides

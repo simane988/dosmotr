@@ -32,9 +32,9 @@ enum class WatchStatus(val libraryOrder: Int) {
 @Entity(tableName = "titles")
 data class TitleEntity(
     @PrimaryKey val id: String,
-    // The column names predate the backend and stay put: the database is built with
-    // fallbackToDestructiveMigration(), so renaming a column without writing a migration
-    // wipes every existing library.
+    // The column names predate the backend and stay put: renaming one is a schema change
+    // like any other, so it needs a hand-written entry in AppDatabase.MIGRATIONS that
+    // copies every existing library across. Nothing about the names is worth that.
     @ColumnInfo(name = "tmdbId") val catalogId: Int?,
     val mediaType: MediaType,
     val name: String,

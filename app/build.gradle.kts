@@ -125,6 +125,14 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 
+    sourceSets {
+        // MigrationTestHelper reads the exported schemas out of the test APK's assets, so
+        // ksp's room.schemaLocation below has to be an androidTest asset directory too.
+        // On androidTest only: the app itself never opens these files, and shipping them
+        // in the release APK would be dead weight.
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+
     lint {
         // CI runs `lintDebug` and must fail on it — a lint report nobody blocks on is a
         // report nobody reads. Findings the codebase already has live in lint-baseline.xml,

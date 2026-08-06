@@ -134,9 +134,10 @@ here, because they are properties of the source.
 Two persisted names still say `tmdb`: the `tmdbId` / `tmdbRating` columns of `titles` and
 the `tmdb_id` / `tmdb_rating` keys in backup JSON. Kotlin calls them `catalogId` and
 `rating`, mapped with `@ColumnInfo` / `@SerialName`. **Renaming them for real is not a
-cosmetic change**: the database uses `fallbackToDestructiveMigration()`, so a column
-rename without a migration wipes every user's library, and changing the JSON keys breaks
-importing older backups.
+cosmetic change**: a column rename is a schema change like any other, so it costs a
+hand-written entry in `AppDatabase.MIGRATIONS` that copies every existing library across —
+and a rename shipped *without* one no longer wipes the library, it fails to open the
+database at all. Changing the JSON keys separately breaks importing older backups.
 
 The backend is a **separate project**, not part of this build: `~/projects/dosmotr-backend`
 (nginx + Caddy, deployed with Docker Compose). Nothing here depends on it at compile
@@ -179,6 +180,13 @@ Invariants that are easy to break and expensive to debug:
   iterating episodes must handle that.
 - **Progress is never stored.** `TrackerDao.observeLibrary` computes it with `COUNT(*)`
   subqueries, so it cannot drift out of sync.
+- **Schema changes are migrated, never dropped.** The database is built with
+  `.addMigrations(*AppDatabase.MIGRATIONS)` and **`fallbackToDestructiveMigration()` must
+  not come back** — it deletes the library of everyone who updates, and there is no cloud
+  copy to restore from. So bumping `version` in `AppDatabase` means three things in one
+  commit: the `Migration` itself, the exported `app/schemas/…/<version>.json`, and the
+  `FakeTrackerDao` update if the DAO moved with it. `MigrationTest` opens a version 1
+  file with the current schema and fails when any of that is missing.
 - **`upsertTitle` is `@Upsert`, not `INSERT OR REPLACE`.** REPLACE deletes the row first
   and the FK cascade takes every watched episode with it.
 - **`insertEpisodes` uses `IGNORE`** so a refresh adds newly aired episodes without
