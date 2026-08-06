@@ -6,6 +6,9 @@ import com.g3ck0.seriestracker.BuildConfig
 import com.g3ck0.seriestracker.data.local.AppDatabase
 import com.g3ck0.seriestracker.data.local.TrackerDao
 import com.g3ck0.seriestracker.data.remote.CatalogApi
+import com.g3ck0.seriestracker.data.settings.DataStoreSettingsStore
+import com.g3ck0.seriestracker.data.settings.SettingsStore
+import com.g3ck0.seriestracker.data.settings.settingsDataStore
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
 import dagger.Provides
@@ -41,6 +44,15 @@ object AppModule {
 
     @Provides
     fun provideDao(db: AppDatabase): TrackerDao = db.trackerDao()
+
+    /**
+     * The DataStore itself is the delegate's, one per process and per file; this only
+     * wraps it in the interface the rest of the app talks to.
+     */
+    @Provides
+    @Singleton
+    fun provideSettingsStore(@ApplicationContext context: Context): SettingsStore =
+        DataStoreSettingsStore(context.settingsDataStore)
 
     /**
      * Blank when the build was made without a backend configured: no search, no refresh,

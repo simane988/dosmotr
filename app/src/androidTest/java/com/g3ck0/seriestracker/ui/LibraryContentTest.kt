@@ -284,6 +284,44 @@ class LibraryContentTest {
     }
 
     @Test
+    fun notificationPromptIsOfferedAboveTheList() {
+        var enabled = false
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(
+                    loading = false,
+                    items = listOf(series()),
+                    askNotifications = true,
+                ),
+                onEnableNotifications = { enabled = true },
+            )
+        }
+
+        compose.onNodeWithTag(LibraryTags.NOTIFY_PROMPT).assertIsDisplayed()
+        compose.onNodeWithText("Сообщать о новых сериях?").assertIsDisplayed()
+        compose.onNodeWithTag(LibraryTags.NOTIFY_ENABLE).performClick()
+        assertTrue(enabled)
+    }
+
+    /** The flag is the whole condition: cleared, the row is not in the list at all. */
+    @Test
+    fun notificationPromptIsAbsentWhenNotAsking() {
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(
+                    loading = false,
+                    items = listOf(series()),
+                    askNotifications = false,
+                ),
+            )
+        }
+
+        compose.onNodeWithTag(LibraryTags.NOTIFY_PROMPT).assertDoesNotExist()
+        compose.onNodeWithTag(LibraryTags.NOTIFY_ENABLE).assertDoesNotExist()
+        compose.onNodeWithText("Dark").assertIsDisplayed()
+    }
+
+    @Test
     fun filteredToNothingSaysFiltersNotEmptyLibrary() {
         compose.setThemedContent {
             LibraryContent(

@@ -7,6 +7,7 @@ import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.DeletedTitle
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
+import com.g3ck0.seriestracker.data.settings.SettingsStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,11 +35,19 @@ data class LibraryUiState(
     val filters: LibraryFilters = LibraryFilters(),
     val totalCount: Int = items.size,
     val message: LibraryMessage? = null,
+    /**
+     * Whether to offer turning episode notifications on. True once there is something to
+     * notify about and the permission has never been asked for; the screen narrows it
+     * further by what the platform can actually ask (see `LibraryScreen`), so the
+     * stateless half only has to render the flag.
+     */
+    val askNotifications: Boolean = false,
 )
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val repository: TrackerRepository,
+    private val settings: SettingsStore,
 ) : ViewModel() {
 
     private val filters = MutableStateFlow(LibraryFilters())
@@ -68,13 +77,21 @@ class LibraryViewModel @Inject constructor(
     private val orderEpoch = MutableStateFlow(0)
 
     val state: StateFlow<LibraryUiState> =
-        combine(repository.observeLibrary(), filters, message, orderEpoch) { library, f, msg, _ ->
+        combine(
+            repository.observeLibrary(),
+            filters,
+            message,
+            orderEpoch,
+            settings.notificationsAsked,
+        ) { library, f, msg, _, asked ->
+            val items = pin(library.filter { it.matches(f) })
             LibraryUiState(
                 loading = false,
-                items = pin(library.filter { it.matches(f) }),
+                items = items,
                 filters = f,
                 totalCount = library.size,
                 message = msg,
+                askNotifications = items.isNotEmpty() && !asked,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -149,6 +166,15 @@ class LibraryViewModel @Inject constructor(
 
     fun consumeMessage() {
         message.value = null
+    }
+
+    /**
+     * Records that the notification permission has been asked for. Called on every outcome
+     * of the system dialog, refusal included — the prompt is an offer, not a demand, and
+     * one that keeps coming back is the reason people turn notifications off for good.
+     */
+    fun markNotificationsAsked() = viewModelScope.launch {
+        settings.setNotificationsAsked(true)
     }
 
     /**

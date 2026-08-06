@@ -1,5 +1,7 @@
 package com.g3ck0.seriestracker.ui.library
 
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.DropdownMenu
@@ -59,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -68,6 +72,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.g3ck0.seriestracker.data.local.MediaType
@@ -103,6 +108,8 @@ object LibraryTags {
     const val IMPORT = "library:import"
     const val ABOUT = "library:about"
     const val FAB = "library:fab"
+    const val NOTIFY_PROMPT = "library:notify"
+    const val NOTIFY_ENABLE = "library:notify:enable"
     fun card(titleId: String) = "library:card:$titleId"
     fun markNext(titleId: String) = "library:markNext:$titleId"
     fun nextEpisode(titleId: String) = "library:next:$titleId"
@@ -151,6 +158,21 @@ fun LibraryScreen(
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let { backupViewModel.import(it, importMode) } }
 
+    // Whatever the answer, the question has been put — so the prompt goes away either way.
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { viewModel.markNotificationsAsked() }
+
+    // The ViewModel knows there is something to notify about; only here is it known
+    // whether the platform has anything left to ask. Below API 33 the permission is
+    // granted by installing the app, and asking for one already granted opens no dialog.
+    val context = LocalContext.current
+    val canAskNotifications = remember(context) {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+    }
+
     // Without this the search field grabs focus as the dialog closes, pops the keyboard
     // and covers the bottom bar, so the next tab tap goes nowhere.
     ClearFocusWhenDialogCloses(askImportMode)
@@ -190,7 +212,7 @@ fun LibraryScreen(
     }
 
     LibraryContent(
-        state = state,
+        state = state.copy(askNotifications = state.askNotifications && canAskNotifications),
         message = state.message ?: backupState.message?.let { LibraryMessage(it) },
         onMessageShown = {
             if (state.message != null) viewModel.consumeMessage() else backupViewModel.consumeMessage()
@@ -207,10 +229,15 @@ fun LibraryScreen(
         onDelete = { viewModel.delete(it) },
         onExport = { exportLauncher.launch(backupViewModel.suggestedFileName()) },
         onImport = { askImportMode = true },
+        onEnableNotifications = { notificationPermission.launch(POST_NOTIFICATIONS) },
     )
 }
 
 private val IMPORT_TYPES = arrayOf("application/json", "text/plain", "application/octet-stream")
+
+// Named rather than taken from android.Manifest: that constant is inlined at compile time
+// and lint flags it on a minSdk this far below 33, while the string is the same either way.
+private const val POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS"
 
 @Composable
 fun LibraryContent(
@@ -229,6 +256,7 @@ fun LibraryContent(
     onDelete: (String) -> Unit = {},
     onExport: () -> Unit = {},
     onImport: () -> Unit = {},
+    onEnableNotifications: () -> Unit = {},
 ) {
     val snackbar = remember { SnackbarHostState() }
     var aboutOpen by remember { mutableStateOf(false) }
@@ -292,6 +320,13 @@ fun LibraryContent(
                         modifier = Modifier.testTag(LibraryTags.LIST),
                     ) {
                         item(key = "topBar", contentType = "topBar") { topBar(Modifier) }
+                        if (state.askNotifications) {
+                            // A row of the list, not a band above it: it scrolls away like
+                            // the filters do, so it asks once and then stays out of the way.
+                            item(key = "notify", contentType = "notify") {
+                                NotificationPrompt(onEnable = onEnableNotifications)
+                            }
+                        }
                         items(state.items, key = { it.title.id }, contentType = { "title" }) { item ->
                             TitleCard(
                                 item = item,
@@ -786,6 +821,42 @@ private fun OverflowMenu(
                 leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
                 onClick = { onDelete(); expanded = false },
                 modifier = Modifier.testTag(LibraryTags.DELETE_ITEM),
+            )
+        }
+    }
+}
+
+/**
+ * Offers episode notifications, once the library has something worth notifying about.
+ *
+ * Deliberately not shown on first launch: the system dialog on an empty library asks for
+ * a permission nothing would use yet, and a refusal there is the one answer that cannot
+ * be asked about again.
+ */
+@Composable
+private fun NotificationPrompt(onEnable: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier.fillMaxWidth().testTag(LibraryTags.NOTIFY_PROMPT),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Сообщать о новых сериях?",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            ActionPill(
+                icon = Icons.Filled.Notifications,
+                label = "Включить",
+                onClick = onEnable,
+                modifier = Modifier.testTag(LibraryTags.NOTIFY_ENABLE),
             )
         }
     }
