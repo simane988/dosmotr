@@ -7,7 +7,15 @@
 #   scripts/grind.sh --once       # do exactly one task and stop
 #   scripts/grind.sh --no-review  # skip the review rounds, merge straight away
 #   scripts/grind.sh --rounds 5   # allow more review rounds before asking
+#   scripts/grind.sh --bugs       # only todo/bugs/, ignore the features
+#   scripts/grind.sh --features   # only todo/features/, ignore the bugs
+#   scripts/grind.sh --in-order   # backlog order, not the picker's idea of value
 #   scripts/grind.sh --model-complex opus --model-simple sonnet
+#
+# By default Claude picks the next task by value. --in-order takes them in
+# backlog order instead — bugs before features, then by number (feature-20,
+# feature-21, …), which is what you want when the specs build on each other.
+# The task is still sized simple/complex, so the model choice is unaffected.
 #
 # Models are per job. The picker sizes each task simple/complex and the author
 # session runs on the matching model; reviews are always Sonnet — reading a diff
@@ -36,6 +44,8 @@ STATE_DIR="todo/.grind"
 ASK=1
 ONCE=0
 START_TASK=""
+SCOPE="all"         # all | bugs | features — which directories count as the backlog
+ORDER=0             # 1: backlog order instead of the picker's ranking
 # bypassPermissions: no prompts at all. The sessions push branches, open PRs and
 # arm auto-merge on their own, so they run unattended by design; --mode auto is
 # the middle ground if you want the risky calls to still stop and ask.
@@ -61,6 +71,10 @@ while [ $# -gt 0 ]; do
         --task) START_TASK="$2"; shift 2 ;;
         --no-review) REVIEW=0; shift ;;
         --rounds) MAX_ROUNDS="$2"; shift 2 ;;
+        --bugs) SCOPE="bugs"; shift ;;
+        --features) SCOPE="features"; shift ;;
+        --only) SCOPE="$2"; shift 2 ;;
+        --in-order|--sequential) ORDER=1; shift ;;
         --mode) MODE="$2"; shift 2 ;;
         --model) MODEL="$2"; shift 2 ;;
         --model-simple) MODEL_SIMPLE="$2"; shift 2 ;;
@@ -76,10 +90,23 @@ die() { echo "grind: $*" >&2; exit 1; }
 command -v claude >/dev/null || die "claude CLI not on PATH"
 command -v gh >/dev/null || die "gh CLI not on PATH"
 [ -d todo ] || die "no todo/ directory here"
+case "$SCOPE" in all|bugs|features) ;; *) die "--only takes 'bugs' or 'features', not '$SCOPE'" ;; esac
 mkdir -p "$STATE_DIR"
 
+# The backlog, narrowed by --bugs/--features. Bugs come before features, and
+# within a directory the order is numeric (`sort -V`): plain `ls` puts feature-9
+# after feature-21, which is the wrong "next one" in --in-order mode and the
+# wrong fallback everywhere else.
 open_tasks() {
-    ls todo/bugs/*.md todo/features/*.md 2>/dev/null | xargs -r -n1 basename | sed 's/\.md$//'
+    local dirs=(todo/bugs todo/features)
+    case "$SCOPE" in
+        bugs) dirs=(todo/bugs) ;;
+        features) dirs=(todo/features) ;;
+    esac
+    local dir
+    for dir in "${dirs[@]}"; do
+        ls "$dir"/*.md 2>/dev/null | xargs -r -n1 basename | sed 's/\.md$//' | sort -V
+    done
 }
 
 # Every session runs non-interactively. An interactive `claude` does not end when
@@ -167,10 +194,10 @@ pick_task() {
             cat todo/README.md 2>/dev/null
             echo '```'
             echo
-            echo "Pick the SINGLE most valuable task to do next. Weigh: user-visible"
-            echo "damage (data corruption and unreachable actions first), how many"
-            echo "users hit it, and cost to fix. Prefer a cheap high-impact fix over"
-            echo "an expensive one."
+            echo "Pick the SINGLE most valuable task to do next, from the ids listed"
+            echo "above and no others. Weigh: user-visible damage (data corruption and"
+            echo "unreachable actions first), how many users hit it, and cost to fix."
+            echo "Prefer a cheap high-impact fix over an expensive one."
             echo
             echo "Then size it: 'simple' if it is a contained change — one or two"
             echo "files, a wording or layout fix, an obvious null/edge case, no"
@@ -194,13 +221,45 @@ pick_task() {
     id="$(printf '%s' "$picked" | awk '{print $1}')"
     size="$(printf '%s' "$picked" | awk '{print tolower($2)}')"
     case "$size" in simple|complex) ;; *) size="" ;; esac
-    if [ -n "$id" ] && task_path "$id" >/dev/null; then
+    # Checked against the list it was given, not just against todo/: under
+    # --bugs/--features an id from the other directory is a hallucination too.
+    if [ -n "$id" ] && printf '%s\n' "$list" | grep -qxF -- "$id"; then
         echo "$id ${size:-complex}"
         return 0
     fi
     # Picker unavailable or hallucinated an id: fall back to backlog order,
     # bugs before features, and to the careful model.
     echo "$(echo "$list" | head -1) complex"
+}
+
+# --in-order does its own picking, but the model still has to be chosen per task,
+# so the size question is asked on its own. Same one-shot, tool-less call as the
+# picker, minus the ranking; anything unparseable is 'complex', because paying
+# for Opus on a small fix is cheaper than the reverse.
+size_task() {
+    local id="$1" path size
+    path="$(task_path "$id")" || { echo complex; return 0; }
+    size="$(
+        {
+            echo "Task spec from the backlog of an Android app:"
+            echo '```'
+            head -c 4000 "$path"
+            echo '```'
+            echo
+            echo "Size it: 'simple' if it is a contained change — one or two files, a"
+            echo "wording or layout fix, an obvious null/edge case, no schema and no"
+            echo "new screen. 'complex' if it touches the database, the repository or"
+            echo "sync logic, spans several layers, needs a design decision, or the"
+            echo "spec is vague. When in doubt: complex."
+            echo
+            echo "Answer with exactly one word: simple or complex. Nothing else."
+        } | timeout 120 claude -p --tools "" --model "$MODEL_PICK" 2>/dev/null \
+          | head -c 100 | tr -d '`' | tr 'A-Z' 'a-z' | awk 'NF{print $1; exit}' | tr -cd 'a-z'
+        # Bounded and non-fatal for the same reason as in pick_task: an unbounded
+        # producer read into the shell's heap is what the OOM killer takes.
+        true
+    )"
+    case "$size" in simple|complex) echo "$size" ;; *) echo complex ;; esac
 }
 
 # --- the prompt each working session starts with ------------------------------
@@ -459,6 +518,11 @@ while :; do
     # model; the picker sizes the ones it chooses itself.
     if [ -n "$START_TASK" ]; then
         TASK="$START_TASK"; START_TASK=""; SIZE="complex"
+    elif [ "$ORDER" -eq 1 ]; then
+        # Backlog order: the first id still open, skipped ones already filtered
+        # out of REMAINING. No ranking call — only the sizing one.
+        TASK="$(printf '%s' "$REMAINING" | awk '{print $1}')"
+        SIZE="$(size_task "$TASK")"
     else
         PICKED="$(pick_task)"
         TASK="${PICKED%% *}"; SIZE="${PICKED##* }"
