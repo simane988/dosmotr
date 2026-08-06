@@ -5,6 +5,7 @@ import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import com.g3ck0.seriestracker.fake.FakeCatalogApi
+import com.g3ck0.seriestracker.fake.FakeSettingsStore
 import com.g3ck0.seriestracker.fake.FakeTrackerDao
 import com.g3ck0.seriestracker.fake.MainDispatcherRule
 import com.g3ck0.seriestracker.fake.awaitUntil
@@ -16,6 +17,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -29,8 +31,9 @@ class LibraryViewModelTest {
 
     private val dao = FakeTrackerDao()
     private val repository = TrackerRepository(dao, FakeCatalogApi(), "key")
+    private val settings = FakeSettingsStore()
 
-    private fun viewModel() = LibraryViewModel(repository)
+    private fun viewModel() = LibraryViewModel(repository, settings)
 
     private fun seedLibrary() {
         dao.seedTitle(tvTitle(id = "tv_1", name = "Dark", status = WatchStatus.WATCHING))
@@ -343,6 +346,47 @@ class LibraryViewModelTest {
             )
             val grown = awaitUntil { it.items.size == 4 }
             assertEquals(listOf("A", "New", "B", "C"), grown.items.map { it.title.name })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** An empty library has nothing to notify about, so there is nothing to ask for yet. */
+    @Test
+    fun `notifications are offered once the library is not empty`() = runTest {
+        val vm = viewModel()
+
+        vm.state.test {
+            assertFalse(awaitUntil { !it.loading }.askNotifications)
+            seedLibrary()
+            assertTrue(awaitUntil { it.items.isNotEmpty() }.askNotifications)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `notifications are not offered again once the question was asked`() = runTest {
+        seedLibrary()
+        val vm = LibraryViewModel(repository, FakeSettingsStore(notificationsAsked = true))
+
+        vm.state.test {
+            val loaded = awaitUntil { !it.loading }
+            assertEquals(3, loaded.items.size)
+            assertFalse(loaded.askNotifications)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** Whatever the system dialog answered, the flag has to survive the next start. */
+    @Test
+    fun `answering the permission dialog is remembered`() = runTest {
+        seedLibrary()
+        val vm = viewModel()
+
+        vm.state.test {
+            assertTrue(awaitUntil { !it.loading }.askNotifications)
+            vm.markNotificationsAsked()
+            awaitUntil { !it.askNotifications }
+            assertTrue(settings.storedNotificationsAsked)
             cancelAndIgnoreRemainingEvents()
         }
     }
