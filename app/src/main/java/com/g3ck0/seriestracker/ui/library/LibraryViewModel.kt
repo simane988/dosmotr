@@ -6,13 +6,18 @@ import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.DeletedTitle
+import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import com.g3ck0.seriestracker.data.settings.SettingsStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -42,6 +47,12 @@ data class LibraryUiState(
      * stateless half only has to render the flag.
      */
     val askNotifications: Boolean = false,
+    /**
+     * Titles to offer on an empty library — trending, so the first screen shows something
+     * instead of an empty room. Empty whenever there is no backend or the request failed,
+     * and the row is then simply not drawn.
+     */
+    val suggestions: List<SearchItem> = emptyList(),
 )
 
 @HiltViewModel
@@ -76,6 +87,22 @@ class LibraryViewModel @Inject constructor(
 
     private val orderEpoch = MutableStateFlow(0)
 
+    private val suggestions = MutableStateFlow<List<SearchItem>>(emptyList())
+
+    /** Guards [loadSuggestions] against asking the backend twice for the same screen. */
+    private var suggestionsRequested = false
+
+    private val openTitleRequests = Channel<String>(Channel.BUFFERED)
+
+    /**
+     * Titles to navigate to, one per added suggestion.
+     *
+     * A channel rather than a field of the state: opening a title is an event, and a state
+     * field would replay it on the next recomposition — the screen would bounce back into
+     * the title the user has just come out of.
+     */
+    val openTitle: Flow<String> = openTitleRequests.receiveAsFlow()
+
     val state: StateFlow<LibraryUiState> =
         combine(
             repository.observeLibrary(),
@@ -93,11 +120,61 @@ class LibraryViewModel @Inject constructor(
                 message = msg,
                 askNotifications = items.isNotEmpty() && !asked,
             )
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = LibraryUiState(),
-        )
+            // combine() takes five flows at most, so the suggestions are folded in
+            // afterwards rather than squeezed into the tuple above.
+        }.combine(suggestions) { base, offered -> base.copy(suggestions = offered) }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = LibraryUiState(),
+            )
+
+    /**
+     * Fills [LibraryUiState.suggestions] with what is trending, for the empty state to show.
+     *
+     * Called by the screen when the empty library is on screen, and requested at most once
+     * per emptiness: a cold start with a library in it must not touch the network at all,
+     * which is why the library is checked here too rather than trusted to the caller.
+     * A failure is silent — the row is an offer, and an error message on first launch is
+     * not what the screen is for — but it is not remembered either, so entering the empty
+     * library again tries once more.
+     */
+    fun loadSuggestions() {
+        if (suggestionsRequested || !repository.hasBackend) return
+        viewModelScope.launch {
+            if (repository.observeLibrary().first().isNotEmpty()) return@launch
+            suggestionsRequested = true
+            repository.trending()
+                .onSuccess { suggestions.value = it.take(SUGGESTION_COUNT) }
+                .onFailure { suggestionsRequested = false }
+        }
+    }
+
+    /**
+     * Adds a suggested title, then asks the screen to open it. Adding first is what makes
+     * the title real: the detail screen reads the database, so it has nothing to show for
+     * a title that is only in the trending row.
+     */
+    fun addSuggestion(item: SearchItem) = viewModelScope.launch {
+        repository.add(item)
+            .onSuccess { openTitleRequests.send(it) }
+            .onFailure { message.value = LibraryMessage("Не удалось добавить «${item.name}»") }
+    }
+
+    /**
+     * Manual entry from the empty library. The dialog is the search screen's, but reaching
+     * it used to mean going through a search that needs a backend nobody has offline.
+     */
+    fun addManual(
+        name: String,
+        mediaType: MediaType,
+        episodesPerSeason: List<Int>,
+        runtimeMinutes: Int,
+        year: String?,
+    ) = viewModelScope.launch {
+        repository.addManual(name, mediaType, episodesPerSeason, runtimeMinutes, year)
+        message.value = LibraryMessage("«$name» добавлен вручную")
+    }
 
     /**
      * Drops the frozen order so the next emission is sorted by the DAO again. Called when
@@ -206,6 +283,9 @@ class LibraryViewModel @Inject constructor(
         return ordered
     }
 }
+
+/** Enough posters for the row to scroll, few enough to stay one screenful of work. */
+private const val SUGGESTION_COUNT = 12
 
 private fun TitleWithProgress.matches(f: LibraryFilters): Boolean {
     if (f.status != null && title.status != f.status) return false

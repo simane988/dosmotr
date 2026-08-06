@@ -27,12 +27,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
@@ -80,6 +84,7 @@ import com.g3ck0.seriestracker.data.local.TitleEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.backup.BackupRepository.ImportMode
+import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.ui.FloatingFabClearance
 import com.g3ck0.seriestracker.ui.FloatingFabContentClearance
 import com.g3ck0.seriestracker.ui.about.AboutDialog
@@ -93,6 +98,7 @@ import com.g3ck0.seriestracker.ui.common.PillSearchField
 import com.g3ck0.seriestracker.ui.common.Poster
 import com.g3ck0.seriestracker.ui.common.ProgressBar
 import com.g3ck0.seriestracker.ui.common.SnackbarOverlay
+import com.g3ck0.seriestracker.ui.search.ManualAddDialog
 import com.g3ck0.seriestracker.ui.common.label
 import com.g3ck0.seriestracker.ui.common.nextLabel
 import com.g3ck0.seriestracker.ui.common.plural
@@ -102,7 +108,9 @@ object LibraryTags {
     const val FILTER_QUERY = "library:query"
     const val EMPTY = "library:empty"
     const val EMPTY_SEARCH = "library:empty:search"
+    const val EMPTY_MANUAL = "library:empty:manual"
     const val EMPTY_IMPORT = "library:empty:import"
+    const val SUGGESTIONS = "library:suggestions"
     const val TOP_MENU = "library:topMenu"
     const val EXPORT = "library:export"
     const val IMPORT = "library:import"
@@ -111,6 +119,7 @@ object LibraryTags {
     const val NOTIFY_PROMPT = "library:notify"
     const val NOTIFY_ENABLE = "library:notify:enable"
     fun card(titleId: String) = "library:card:$titleId"
+    fun suggestion(titleId: String) = "library:suggestion:$titleId"
     fun markNext(titleId: String) = "library:markNext:$titleId"
     fun nextEpisode(titleId: String) = "library:next:$titleId"
     fun overflow(titleId: String) = "library:overflow:$titleId"
@@ -148,6 +157,15 @@ fun LibraryScreen(
     // The ViewModel outlives this composable, so entering the screen is what re-sorts the
     // library; while it is open the order stays put (see LibraryViewModel.pinnedOrder).
     LaunchedEffect(Unit) { viewModel.refreshOrder() }
+
+    // Adding a suggestion is what makes it openable, so the navigation waits for the
+    // ViewModel to say the row exists.
+    LaunchedEffect(Unit) { viewModel.openTitle.collect(onOpenTitle) }
+
+    // Trending is fetched only once the library is known to be empty — a start with titles
+    // in it must cost no request at all. `loading` is what tells the two apart.
+    val libraryIsEmpty = !state.loading && state.totalCount == 0
+    LaunchedEffect(libraryIsEmpty) { if (libraryIsEmpty) viewModel.loadSuggestions() }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -230,6 +248,10 @@ fun LibraryScreen(
         onExport = { exportLauncher.launch(backupViewModel.suggestedFileName()) },
         onImport = { askImportMode = true },
         onEnableNotifications = { notificationPermission.launch(POST_NOTIFICATIONS) },
+        onOpenSuggestion = { viewModel.addSuggestion(it) },
+        onAddManual = { name, type, seasons, runtime, year ->
+            viewModel.addManual(name, type, seasons, runtime, year)
+        },
     )
 }
 
@@ -257,11 +279,28 @@ fun LibraryContent(
     onExport: () -> Unit = {},
     onImport: () -> Unit = {},
     onEnableNotifications: () -> Unit = {},
+    onOpenSuggestion: (SearchItem) -> Unit = {},
+    onAddManual: (String, MediaType, List<Int>, Int, String?) -> Unit = { _, _, _, _, _ -> },
 ) {
     val snackbar = remember { SnackbarHostState() }
     var aboutOpen by remember { mutableStateOf(false) }
+    var manualOpen by remember { mutableStateOf(false) }
 
     if (aboutOpen) AboutDialog(onDismiss = { aboutOpen = false })
+
+    // The filter field is hidden on an empty library, but the dialog leaves a focused text
+    // field behind either way — and a keyboard over the navigation pill eats the next tap.
+    ClearFocusWhenDialogCloses(manualOpen)
+
+    if (manualOpen) {
+        ManualAddDialog(
+            onDismiss = { manualOpen = false },
+            onConfirm = { name, type, seasons, runtime, year ->
+                onAddManual(name, type, seasons, runtime, year)
+                manualOpen = false
+            },
+        )
+    }
 
     LaunchedEffect(message) {
         message?.let {
@@ -303,8 +342,11 @@ fun LibraryContent(
                     topBar(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     EmptyLibrary(
                         hasAnything = state.totalCount > 0,
+                        suggestions = state.suggestions,
                         onSearch = onSearch,
+                        onManual = { manualOpen = true },
                         onImport = onImport,
+                        onOpenSuggestion = onOpenSuggestion,
                     )
                 } else {
                     LazyColumn(
@@ -862,51 +904,128 @@ private fun NotificationPrompt(onEnable: () -> Unit, modifier: Modifier = Modifi
     }
 }
 
+/**
+ * What the first launch shows: what the app is for, three things to do about it, and —
+ * when there is a backend to ask — a row of what is trending, so the screen has content
+ * on it before the user has found anything themselves.
+ *
+ * Scrollable rather than centred in a Box: the row plus three buttons do not fit on a
+ * short screen, and the buttons are what must not be cut off. With room to spare the
+ * arrangement still centres the block.
+ */
 @Composable
 private fun EmptyLibrary(
     hasAnything: Boolean,
+    suggestions: List<SearchItem> = emptyList(),
     onSearch: () -> Unit = {},
+    onManual: () -> Unit = {},
     onImport: () -> Unit = {},
+    onOpenSuggestion: (SearchItem) -> Unit = {},
 ) {
-    Box(
-        Modifier.fillMaxSize().testTag(LibraryTags.EMPTY),
-        contentAlignment = Alignment.Center,
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(top = 24.dp, bottom = FloatingFabContentClearance)
+            .testTag(LibraryTags.EMPTY),
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 32.dp, vertical = 64.dp),
-        ) {
-            Text(
-                text = if (hasAnything) "Ничего не найдено по фильтрам" else "Библиотека пуста",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
+        Text(
+            text = if (hasAnything) "Ничего не найдено по фильтрам" else "Библиотека пуста",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 32.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            // The second sentence is the whole pitch, and the same one the store listing
+            // will carry (feature-20) — so it is worded once and kept identical.
+            text = if (hasAnything) {
+                "Сбрось фильтры или измени запрос"
+            } else {
+                "Отмечай просмотренные серии и не теряй, на чём остановился. " +
+                    "Всё хранится на устройстве."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 32.dp),
+        )
+        if (!hasAnything) {
+            Spacer(Modifier.height(24.dp))
+            ExtendedActionButton(
+                icon = Icons.Filled.Add,
+                label = "Найти сериал",
+                onClick = onSearch,
+                modifier = Modifier.testTag(LibraryTags.EMPTY_SEARCH),
             )
-            Text(
-                text = if (hasAnything) {
-                    "Сбрось фильтры или измени запрос"
-                } else {
-                    "Найди сериал или фильм и добавь его в отслеживание"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
+            Spacer(Modifier.height(8.dp))
+            // Manual entry used to live on the search screen alone, which is the one screen
+            // that needs a backend — so offline it could not be reached at all.
+            ActionPill(
+                icon = Icons.Filled.Edit,
+                label = "Добавить вручную",
+                filled = false,
+                onClick = onManual,
+                modifier = Modifier.testTag(LibraryTags.EMPTY_MANUAL),
             )
-            if (!hasAnything) {
-                Spacer(Modifier.height(16.dp))
-                ExtendedActionButton(
-                    icon = Icons.Filled.Add,
-                    label = "Найти сериал или фильм",
-                    onClick = onSearch,
-                    modifier = Modifier.testTag(LibraryTags.EMPTY_SEARCH),
-                )
-                Spacer(Modifier.height(8.dp))
-                ActionPill(
-                    icon = Icons.Filled.FileUpload,
-                    label = "Импорт из JSON",
-                    filled = false,
-                    onClick = onImport,
-                    modifier = Modifier.testTag(LibraryTags.EMPTY_IMPORT),
+            Spacer(Modifier.height(8.dp))
+            ActionPill(
+                icon = Icons.Filled.FileUpload,
+                label = "Импортировать бэкап",
+                filled = false,
+                onClick = onImport,
+                modifier = Modifier.testTag(LibraryTags.EMPTY_IMPORT),
+            )
+            if (suggestions.isNotEmpty()) {
+                Spacer(Modifier.height(28.dp))
+                SuggestionRow(suggestions = suggestions, onOpen = onOpenSuggestion)
+            }
+        }
+    }
+}
+
+/**
+ * Trending posters for an empty library. Tapping one adds the title and opens it — the
+ * detail screen reads the database, so there is nothing to open before it is added.
+ *
+ * Absent whenever [suggestions] is empty, which covers both a build without a backend and
+ * a request that failed: neither is worth an error on the first screen a person sees.
+ */
+@Composable
+private fun SuggestionRow(suggestions: List<SearchItem>, onOpen: (SearchItem) -> Unit) {
+    Text(
+        text = "Популярное за неделю",
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, bottom = 8.dp),
+    )
+    // Full-bleed, unlike the text above it: a poster half off the right edge is what says
+    // the row scrolls.
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().testTag(LibraryTags.SUGGESTIONS),
+    ) {
+        items(suggestions, key = { it.id }, contentType = { "suggestion" }) { item ->
+            Surface(
+                onClick = { onOpen(item) },
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier
+                    .width(104.dp)
+                    .height(156.dp)
+                    .testTag(LibraryTags.suggestion(item.id)),
+            ) {
+                Poster(
+                    path = item.posterPath,
+                    title = item.name,
+                    corner = 14,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }

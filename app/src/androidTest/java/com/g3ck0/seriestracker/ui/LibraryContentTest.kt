@@ -22,7 +22,9 @@ import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.TitleEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
+import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.ui.common.SnackbarTags
+import com.g3ck0.seriestracker.ui.search.ManualAddTags
 import com.g3ck0.seriestracker.ui.library.LibraryFilters
 import com.g3ck0.seriestracker.ui.library.LibraryMessage
 import com.g3ck0.seriestracker.ui.library.LibraryTags
@@ -242,6 +244,17 @@ class LibraryContentTest {
         compose.onNodeWithText("Серии не загружены").assertIsDisplayed()
     }
 
+    private fun suggestion(id: Int = 1399, name: String = "Игра престолов") = SearchItem(
+        catalogId = id,
+        mediaType = MediaType.TV,
+        name = name,
+        overview = "",
+        posterPath = null,
+        backdropPath = null,
+        year = "2011",
+        voteAverage = 8.4,
+    )
+
     @Test
     fun emptyLibraryInvitesToSearch() {
         var searched = false
@@ -281,6 +294,71 @@ class LibraryContentTest {
 
         compose.onNodeWithTag(LibraryTags.EMPTY_IMPORT).assertIsDisplayed().performClick()
         assertTrue(imported)
+    }
+
+    /**
+     * feature-15: the empty screen says what the app is for in one line, and offers three
+     * things to do rather than the two it used to.
+     */
+    @Test
+    fun emptyLibraryExplainsTheAppAndOffersManualEntry() {
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(loading = false, items = emptyList(), totalCount = 0),
+            )
+        }
+
+        compose.onNodeWithText(
+            "Отмечай просмотренные серии и не теряй, на чём остановился. " +
+                "Всё хранится на устройстве."
+        ).assertIsDisplayed()
+
+        // Manual entry lived on the search screen alone, which is the one screen that
+        // needs a backend — so offline there was no way to add anything at all.
+        compose.onNodeWithTag(LibraryTags.EMPTY_MANUAL).assertIsDisplayed().performClick()
+        compose.onNodeWithTag(ManualAddTags.NAME).assertIsDisplayed()
+    }
+
+    /** With a backend behind it the first screen shows content, not an empty room. */
+    @Test
+    fun emptyLibraryShowsTrendingPostersAndOpensOne() {
+        var opened: SearchItem? = null
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(
+                    loading = false,
+                    items = emptyList(),
+                    totalCount = 0,
+                    suggestions = listOf(suggestion(), suggestion(id = 550, name = "Бойцовский клуб")),
+                ),
+                onOpenSuggestion = { opened = it },
+            )
+        }
+
+        compose.onNodeWithTag(LibraryTags.SUGGESTIONS).assertIsDisplayed()
+        compose.onNodeWithTag(LibraryTags.suggestion("tv_1399")).assertIsDisplayed().performClick()
+
+        assertEquals("Игра престолов", opened?.name)
+    }
+
+    /**
+     * No backend, or a request that failed: the row is simply absent and everything else
+     * on the screen still works.
+     */
+    @Test
+    fun emptyLibraryWithoutSuggestionsDropsTheRowAndKeepsTheButtons() {
+        var searched = false
+        compose.setThemedContent {
+            LibraryContent(
+                state = LibraryUiState(loading = false, items = emptyList(), totalCount = 0),
+                onSearch = { searched = true },
+            )
+        }
+
+        compose.onNodeWithTag(LibraryTags.SUGGESTIONS).assertDoesNotExist()
+        compose.onNodeWithText("Популярное за неделю").assertDoesNotExist()
+        compose.onNodeWithTag(LibraryTags.EMPTY_SEARCH).assertIsDisplayed().performClick()
+        assertTrue(searched)
     }
 
     @Test
@@ -325,7 +403,15 @@ class LibraryContentTest {
     fun filteredToNothingSaysFiltersNotEmptyLibrary() {
         compose.setThemedContent {
             LibraryContent(
-                state = LibraryUiState(loading = false, items = emptyList(), totalCount = 4),
+                state = LibraryUiState(
+                    loading = false,
+                    items = emptyList(),
+                    totalCount = 4,
+                    // Left over from a library that was empty earlier in the session: a
+                    // filter that matched nothing is not first launch, so none of the
+                    // first-launch block belongs here.
+                    suggestions = listOf(suggestion()),
+                ),
             )
         }
 
@@ -333,6 +419,8 @@ class LibraryContentTest {
         compose.onNodeWithTag(LibraryTags.FILTER_QUERY).assertIsDisplayed()
         compose.onNodeWithTag(LibraryTags.statusChip(WatchStatus.WATCHING)).assertIsDisplayed()
         compose.onNodeWithTag(LibraryTags.EMPTY_SEARCH).assertDoesNotExist()
+        compose.onNodeWithTag(LibraryTags.EMPTY_MANUAL).assertDoesNotExist()
+        compose.onNodeWithTag(LibraryTags.SUGGESTIONS).assertDoesNotExist()
     }
 
     @Test

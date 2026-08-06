@@ -24,6 +24,10 @@ class FakeCatalogApi : CatalogApi {
 
     var searchCalls: Int = 0
         private set
+
+    /** Counted so a test can prove the library never asked for trending at all. */
+    var trendingCalls: Int = 0
+        private set
     var lastQuery: String? = null
         private set
     val requestedSeasons = mutableListOf<Int>()
@@ -37,6 +41,7 @@ class FakeCatalogApi : CatalogApi {
 
     override suspend fun trending(): SearchResponseDto {
         failure?.let { throw it }
+        trendingCalls++
         return SearchResponseDto(results = trendingResults)
     }
 
