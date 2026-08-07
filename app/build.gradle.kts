@@ -199,6 +199,15 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
+    // The automatic backup runs as a WorkManager job; hilt-work is what lets that worker
+    // be injected, and its compiler generates the factory SeriesTrackerApp hands over.
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
+    // Listing and writing inside a SAF tree the user picked; DocumentsContract by hand is
+    // the same calls with more places to get them wrong.
+    implementation(libs.androidx.documentfile)
+
     implementation(libs.retrofit)
     implementation(libs.retrofit.serialization)
     implementation(libs.okhttp)

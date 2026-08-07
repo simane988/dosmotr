@@ -3,6 +3,7 @@ package com.g3ck0.seriestracker
 import com.g3ck0.seriestracker.ui.common.episodeCode
 import com.g3ck0.seriestracker.ui.common.episodesLabel
 import com.g3ck0.seriestracker.ui.common.formatAirDate
+import com.g3ck0.seriestracker.ui.common.formatBackupTime
 import com.g3ck0.seriestracker.ui.common.formatMinutes
 import com.g3ck0.seriestracker.ui.common.moviesLabel
 import com.g3ck0.seriestracker.ui.common.nextLabel
@@ -12,6 +13,8 @@ import com.g3ck0.seriestracker.fake.tvTitle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.Locale
 
 class LabelsTest {
@@ -63,6 +66,20 @@ class LabelsTest {
         assertEquals("20 января 2008", formatAirDate("2008-01-20"))
         assertEquals("1 сентября 2021", formatAirDate("2021-09-01"))
         assertEquals("31 декабря 1999", formatAirDate("1999-12-31"))
+    }
+
+    /**
+     * The moment is built through the device's own zone, so the assertion holds wherever
+     * the suite runs — what is pinned is the language, not the clock.
+     */
+    @Test
+    fun `the last backup is dated to the minute`() {
+        val moment = LocalDateTime.of(2026, 8, 3, 14, 20)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+
+        assertEquals("3 августа, 14:20", formatBackupTime(moment))
     }
 
     /** The device language must not change the label — the UI is Russian either way. */

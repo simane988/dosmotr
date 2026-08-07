@@ -22,7 +22,7 @@ class BackupRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val db: AppDatabase,
     private val dao: TrackerDao,
-) {
+) : BackupSource {
 
     enum class ImportMode {
         /** Keeps everything already in the library; watched flags are unioned. */
@@ -46,7 +46,14 @@ class BackupRepository @Inject constructor(
         explicitNulls = false
     }
 
-    fun suggestedFileName(): String = "dosmotr-${LocalDate.now()}.json"
+    /**
+     * The date is the whole name, so the automatic backup writes one file a day and a
+     * second run on the same day replaces it rather than filling the rotation.
+     */
+    override fun suggestedFileName(): String =
+        "$BACKUP_FILE_PREFIX${LocalDate.now()}$BACKUP_FILE_SUFFIX"
+
+    override suspend fun titleCount(): Int = dao.titleCount()
 
     /** Returns how many titles were written. */
     suspend fun export(uri: Uri): Result<Int> = runCatching {
@@ -60,7 +67,7 @@ class BackupRepository @Inject constructor(
     }
 
     /** Serialisation half of [export], split out so it can be tested without a Uri. */
-    suspend fun exportToJson(): String =
+    override suspend fun exportToJson(): String =
         json.encodeToString(BackupFile.serializer(), buildBackup())
 
     private suspend fun buildBackup(): BackupFile {

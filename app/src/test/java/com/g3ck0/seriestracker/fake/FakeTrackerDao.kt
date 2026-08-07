@@ -129,6 +129,8 @@ class FakeTrackerDao : TrackerDao {
     override suspend fun allEpisodes(): List<EpisodeEntity> = state.value.episodes
         .sortedWith(compareBy({ it.titleId }, { it.seasonNumber }, { it.episodeNumber }))
 
+    override suspend fun titleCount(): Int = state.value.titles.size
+
     override suspend fun deleteAllTitles() = mutate { Db() }
 
     override suspend fun setStatus(titleId: String, status: WatchStatus) =

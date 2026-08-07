@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -28,6 +30,36 @@ interface SettingsStore {
     val notificationsAsked: Flow<Boolean>
 
     suspend fun setNotificationsAsked(value: Boolean)
+
+    /**
+     * Whether the weekly backup runs. On by default: the private folder it writes into
+     * needs no permission and no question on first launch, and a backup nobody switched
+     * on is exactly the backup that exists when the phone is lost.
+     */
+    val autoBackupEnabled: Flow<Boolean>
+
+    suspend fun setAutoBackupEnabled(value: Boolean)
+
+    /**
+     * The SAF tree the user picked, as a string, or null while backups go to the app's
+     * own folder. A string rather than a `Uri` so that everything above the storage layer
+     * — the ViewModel and its JVM tests included — stays free of Android types.
+     */
+    val backupFolderUri: Flow<String?>
+
+    suspend fun setBackupFolderUri(value: String?)
+
+    /** When the last backup was written, epoch millis, or null while there is none. */
+    val lastBackupAt: Flow<Long?>
+
+    /**
+     * Where that backup landed, as shown in the dialog. Stored rather than derived from
+     * [backupFolderUri]: a run that fell back to the private folder because the chosen
+     * one is gone must say so, and the setting still names the chosen one.
+     */
+    val lastBackupLocation: Flow<String?>
+
+    suspend fun setLastBackup(timestamp: Long, location: String)
 }
 
 internal val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -48,7 +80,39 @@ class DataStoreSettingsStore(private val dataStore: DataStore<Preferences>) : Se
         dataStore.edit { it[NOTIFICATIONS_ASKED] = value }
     }
 
+    override val autoBackupEnabled: Flow<Boolean> =
+        preferences.map { it[AUTO_BACKUP_ENABLED] ?: true }
+
+    override suspend fun setAutoBackupEnabled(value: Boolean) {
+        dataStore.edit { it[AUTO_BACKUP_ENABLED] = value }
+    }
+
+    override val backupFolderUri: Flow<String?> =
+        preferences.map { it[BACKUP_FOLDER_URI]?.takeIf(String::isNotBlank) }
+
+    override suspend fun setBackupFolderUri(value: String?) {
+        dataStore.edit { preferences ->
+            if (value == null) preferences.remove(BACKUP_FOLDER_URI)
+            else preferences[BACKUP_FOLDER_URI] = value
+        }
+    }
+
+    override val lastBackupAt: Flow<Long?> = preferences.map { it[LAST_BACKUP_AT] }
+
+    override val lastBackupLocation: Flow<String?> = preferences.map { it[LAST_BACKUP_LOCATION] }
+
+    override suspend fun setLastBackup(timestamp: Long, location: String) {
+        dataStore.edit {
+            it[LAST_BACKUP_AT] = timestamp
+            it[LAST_BACKUP_LOCATION] = location
+        }
+    }
+
     private companion object {
         val NOTIFICATIONS_ASKED = booleanPreferencesKey("notifications_asked")
+        val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
+        val BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
+        val LAST_BACKUP_AT = longPreferencesKey("last_backup_at")
+        val LAST_BACKUP_LOCATION = stringPreferencesKey("last_backup_location")
     }
 }
