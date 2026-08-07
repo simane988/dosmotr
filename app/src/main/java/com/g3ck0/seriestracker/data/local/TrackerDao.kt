@@ -106,6 +106,13 @@ interface TrackerDao {
     @Query("SELECT * FROM episodes ORDER BY titleId, seasonNumber, episodeNumber")
     suspend fun allEpisodes(): List<EpisodeEntity>
 
+    /**
+     * How many titles a backup would carry. The automatic backup asks before writing:
+     * a file of an empty library restores nothing and would rotate a real one out.
+     */
+    @Query("SELECT COUNT(*) FROM titles")
+    suspend fun titleCount(): Int
+
     /** Episodes go too — the foreign key cascades. */
     @Query("DELETE FROM titles")
     suspend fun deleteAllTitles()

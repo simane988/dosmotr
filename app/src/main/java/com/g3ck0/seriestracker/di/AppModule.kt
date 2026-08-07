@@ -3,6 +3,12 @@ package com.g3ck0.seriestracker.di
 import android.content.Context
 import androidx.room.Room
 import com.g3ck0.seriestracker.BuildConfig
+import com.g3ck0.seriestracker.data.backup.AndroidBackupStorage
+import com.g3ck0.seriestracker.data.backup.AutoBackupScheduler
+import com.g3ck0.seriestracker.data.backup.AutoBackupStorage
+import com.g3ck0.seriestracker.data.backup.BackupRepository
+import com.g3ck0.seriestracker.data.backup.BackupSource
+import com.g3ck0.seriestracker.data.backup.WorkManagerAutoBackupScheduler
 import com.g3ck0.seriestracker.data.local.AppDatabase
 import com.g3ck0.seriestracker.data.local.TrackerDao
 import com.g3ck0.seriestracker.data.remote.CatalogApi
@@ -53,6 +59,25 @@ object AppModule {
     @Singleton
     fun provideSettingsStore(@ApplicationContext context: Context): SettingsStore =
         DataStoreSettingsStore(context.settingsDataStore)
+
+    /**
+     * The automatic backup talks to three interfaces rather than to their implementations,
+     * so its rules can be driven by fakes on the JVM — the storage and the scheduler are
+     * where Android lives, and the repository needs a database.
+     */
+    @Provides
+    @Singleton
+    fun provideBackupSource(repository: BackupRepository): BackupSource = repository
+
+    @Provides
+    @Singleton
+    fun provideAutoBackupStorage(storage: AndroidBackupStorage): AutoBackupStorage = storage
+
+    @Provides
+    @Singleton
+    fun provideAutoBackupScheduler(
+        scheduler: WorkManagerAutoBackupScheduler,
+    ): AutoBackupScheduler = scheduler
 
     /**
      * Blank when the build was made without a backend configured: no search, no refresh,

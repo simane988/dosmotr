@@ -3,7 +3,9 @@ package com.g3ck0.seriestracker.ui.common
 import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
@@ -50,6 +52,18 @@ fun formatAirDate(iso: String): String =
     } catch (_: DateTimeParseException) {
         ""
     }
+
+private val BACKUP_TIME_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d MMMM, HH:mm", Locale.forLanguageTag("ru"))
+
+/**
+ * "3 августа, 14:20" — when the last backup was written. The device's own zone, unlike
+ * the pinned locale above: this is a moment the person lived through, not catalogue data.
+ */
+fun formatBackupTime(epochMillis: Long): String =
+    Instant.ofEpochMilli(epochMillis)
+        .atZone(ZoneId.systemDefault())
+        .format(BACKUP_TIME_FORMAT)
 
 fun episodeCode(season: Int, episode: Int): String =
     "S%02dE%02d".format(season, episode)

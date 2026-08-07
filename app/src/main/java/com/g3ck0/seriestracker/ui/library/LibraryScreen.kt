@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -88,6 +89,7 @@ import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.ui.FloatingFabClearance
 import com.g3ck0.seriestracker.ui.FloatingFabContentClearance
 import com.g3ck0.seriestracker.ui.about.AboutDialog
+import com.g3ck0.seriestracker.ui.backup.AutoBackupDialog
 import com.g3ck0.seriestracker.ui.backup.BackupViewModel
 import com.g3ck0.seriestracker.ui.common.ClearFocusWhenDialogCloses
 import com.g3ck0.seriestracker.ui.common.DesignChip
@@ -114,6 +116,7 @@ object LibraryTags {
     const val TOP_MENU = "library:topMenu"
     const val EXPORT = "library:export"
     const val IMPORT = "library:import"
+    const val AUTO_BACKUP = "library:autoBackup"
     const val ABOUT = "library:about"
     const val FAB = "library:fab"
     const val NOTIFY_PROMPT = "library:notify"
@@ -153,6 +156,10 @@ fun LibraryScreen(
     val backupState by backupViewModel.state.collectAsStateWithLifecycle()
     var askImportMode by remember { mutableStateOf(false) }
     var importMode by remember { mutableStateOf(ImportMode.MERGE) }
+
+    // Hosted here rather than in LibraryContent: the dialog resolves a ViewModel of its
+    // own, and the stateless half has to keep working in tests without Hilt.
+    var autoBackupOpen by remember { mutableStateOf(false) }
 
     // The ViewModel outlives this composable, so entering the screen is what re-sorts the
     // library; while it is open the order stays put (see LibraryViewModel.pinnedOrder).
@@ -229,6 +236,8 @@ fun LibraryScreen(
         )
     }
 
+    if (autoBackupOpen) AutoBackupDialog(onDismiss = { autoBackupOpen = false })
+
     LibraryContent(
         state = state.copy(askNotifications = state.askNotifications && canAskNotifications),
         message = state.message ?: backupState.message?.let { LibraryMessage(it) },
@@ -247,6 +256,7 @@ fun LibraryScreen(
         onDelete = { viewModel.delete(it) },
         onExport = { exportLauncher.launch(backupViewModel.suggestedFileName()) },
         onImport = { askImportMode = true },
+        onAutoBackup = { autoBackupOpen = true },
         onEnableNotifications = { notificationPermission.launch(POST_NOTIFICATIONS) },
         onOpenSuggestion = { viewModel.addSuggestion(it) },
         onAddManual = { name, type, seasons, runtime, year ->
@@ -278,6 +288,7 @@ fun LibraryContent(
     onDelete: (String) -> Unit = {},
     onExport: () -> Unit = {},
     onImport: () -> Unit = {},
+    onAutoBackup: () -> Unit = {},
     onEnableNotifications: () -> Unit = {},
     onOpenSuggestion: (SearchItem) -> Unit = {},
     onAddManual: (String, MediaType, List<Int>, Int, String?) -> Unit = { _, _, _, _, _ -> },
@@ -330,6 +341,7 @@ fun LibraryContent(
                         onMediaFilter = onMediaFilter,
                         onExport = onExport,
                         onImport = onImport,
+                        onAutoBackup = onAutoBackup,
                         onAbout = { aboutOpen = true },
                         modifier = modifier,
                     )
@@ -417,6 +429,7 @@ private fun LibraryTopBar(
     onMediaFilter: (MediaType?) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
+    onAutoBackup: () -> Unit,
     onAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -441,7 +454,12 @@ private fun LibraryTopBar(
                 // needed exactly when there is nothing here yet.
                 Spacer(Modifier.weight(1f))
             }
-            LibraryMenuButton(onExport = onExport, onImport = onImport, onAbout = onAbout)
+            LibraryMenuButton(
+                onExport = onExport,
+                onImport = onImport,
+                onAutoBackup = onAutoBackup,
+                onAbout = onAbout,
+            )
         }
 
         if (state.totalCount > 0) {
@@ -455,11 +473,12 @@ private fun LibraryTopBar(
     }
 }
 
-/** Export / import / about, in the filter row rather than in a header of its own. */
+/** Export / import / autobackup / about, in the filter row rather than in a header of its own. */
 @Composable
 private fun LibraryMenuButton(
     onExport: () -> Unit,
     onImport: () -> Unit,
+    onAutoBackup: () -> Unit,
     onAbout: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -492,6 +511,12 @@ private fun LibraryMenuButton(
                 leadingIcon = { Icon(Icons.Filled.FileUpload, contentDescription = null) },
                 onClick = { menuOpen = false; onImport() },
                 modifier = Modifier.testTag(LibraryTags.IMPORT),
+            )
+            DropdownMenuItem(
+                text = { Text("Автобэкап") },
+                leadingIcon = { Icon(Icons.Filled.Backup, contentDescription = null) },
+                onClick = { menuOpen = false; onAutoBackup() },
+                modifier = Modifier.testTag(LibraryTags.AUTO_BACKUP),
             )
             DropdownMenuItem(
                 text = { Text("О приложении") },
