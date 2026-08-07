@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.g3ck0.seriestracker.data.backup.BackupRepository
+import com.g3ck0.seriestracker.data.telemetry.Telemetry
+import com.g3ck0.seriestracker.data.telemetry.TelemetryEvent
 import com.g3ck0.seriestracker.ui.common.plural
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +22,7 @@ data class BackupUiState(
 @HiltViewModel
 class BackupViewModel @Inject constructor(
     private val repository: BackupRepository,
+    private val telemetry: Telemetry,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BackupUiState())
@@ -31,6 +34,8 @@ class BackupViewModel @Inject constructor(
         _state.value = BackupUiState(busy = true)
         repository.export(uri)
             .onSuccess { count ->
+                // Without the count: how many titles someone has is a fact about them.
+                telemetry.event(TelemetryEvent.EXPORT_DONE)
                 _state.value = BackupUiState(
                     message = "Экспортировано $count ${plural(count, "тайтл", "тайтла", "тайтлов")}",
                 )
@@ -42,8 +47,13 @@ class BackupViewModel @Inject constructor(
 
     fun import(uri: Uri, mode: BackupRepository.ImportMode) = viewModelScope.launch {
         _state.value = BackupUiState(busy = true)
+        // Two events rather than one: an import that starts and never finishes is the
+        // interesting case, and the difference between the counts is the only way to see
+        // it — the file is the user's own and its contents are never reported.
+        telemetry.event(TelemetryEvent.IMPORT_STARTED)
         repository.import(uri, mode)
             .onSuccess { result ->
+                telemetry.event(TelemetryEvent.IMPORT_FINISHED)
                 val parts = buildList {
                     if (result.titlesAdded > 0) add("добавлено ${result.titlesAdded}")
                     if (result.titlesUpdated > 0) add("обновлено ${result.titlesUpdated}")

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!--
+            The identifiers Analytics would collect on top of the instance id it needs to
+            work at all, switched off before the first launch rather than at runtime.
+
+            The advertising id and the Android id are stable across installs and across
+            apps — exactly the "stable identifier of a user or a device" feature-18 forbids
+            — and neither is of the slightest use for the eleven counters this app sends.
+            Turning them off here also keeps the Data Safety declaration short and true.
+        -->
+        <meta-data
+            android:name="google_analytics_adid_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="google_analytics_ssaid_collection_enabled"
+            android:value="false" />
+
+        <!--
+            Collection starts switched off and is turned on by CrashReporting.sync() on the
+            first start, from the stored setting. The other way round, the first launch
+            would report before the switch had ever been read.
+        -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+    </application>
+
+</manifest>

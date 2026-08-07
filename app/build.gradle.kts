@@ -9,6 +9,30 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// Crash reporting is a `store`-only affair, and its Gradle plugins are applied only when
+// the Firebase project's configuration is actually here. That is not a convenience: CI
+// builds without any secrets, and so does every fork and every fresh clone, so a build
+// that needs this file would be a build only one machine can do. Without it the plugins
+// stay off, no FirebaseApp is initialised, and FirebaseTelemetry no-ops (see the class).
+//
+// The file is configuration rather than a secret — the keys in it are bound to the package
+// name and the signing certificate — so it is committed once the Firebase project exists.
+val firebaseConfig = file("src/store/google-services.json")
+
+if (firebaseConfig.exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+
+    // Both plugins are applied to the module, not to a flavour, so they also create tasks
+    // for the `direct` variants — which have no configuration file to read and no Firebase
+    // dependency to feed. Disabled rather than left to fail the build on a flavour whose
+    // whole point is carrying no Google code.
+    tasks.matching {
+        it.name.contains("Direct") &&
+            (it.name.contains("GoogleServices") || it.name.contains("Crashlytics"))
+    }.configureEach { enabled = false }
+}
+
 // Secrets live in local.properties (never committed): the backend credentials and the
 // release signing ones.
 val localProps = Properties().apply {
@@ -97,6 +121,10 @@ android {
         create("store") {
             dimension = "distribution"
             buildConfigField("boolean", "DONATIONS_ENABLED", "false")
+            // Whether crash reports can be sent at all, i.e. whether the switch in
+            // «О приложении» has anything behind it. Firebase is compiled into this
+            // flavour only.
+            buildConfigField("boolean", "CRASH_REPORTING_AVAILABLE", "true")
             // Empty rather than absent so the same code compiles in both flavours — and
             // empty means the strings genuinely are not in the store APK.
             buildConfigField("String", "DONATE_URL", "\"\"")
@@ -106,6 +134,7 @@ android {
         create("direct") {
             dimension = "distribution"
             buildConfigField("boolean", "DONATIONS_ENABLED", "true")
+            buildConfigField("boolean", "CRASH_REPORTING_AVAILABLE", "false")
             buildConfigField("String", "DONATE_URL", "\"$donateUrl\"")
             buildConfigField("String", "DONATE_SBP", "\"$donateSbp\"")
             buildConfigField("String", "DONATE_USDT", "\"$donateUsdt\"")
@@ -253,6 +282,15 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.coil.compose)
+
+    // `store` only, and the string form because AGP generates no typed accessor for a
+    // flavour configuration. Keeping these out of `direct` is what makes
+    // `./gradlew :app:dependencies --configuration directReleaseRuntimeClasspath` free of
+    // com.google.firebase — the F-Droid rule and the "nothing watches you" promise both
+    // depend on it.
+    "storeImplementation"(platform(libs.firebase.bom))
+    "storeImplementation"(libs.firebase.crashlytics)
+    "storeImplementation"(libs.firebase.analytics)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

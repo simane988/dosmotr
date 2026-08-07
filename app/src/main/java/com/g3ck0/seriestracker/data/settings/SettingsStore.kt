@@ -49,6 +49,24 @@ interface SettingsStore {
 
     suspend fun setBackupFolderUri(value: String?)
 
+    /**
+     * Whether crash reports and the anonymous counters may be sent. On by default, and
+     * only ever consulted in the `store` flavour — `direct` has no reporting compiled in,
+     * so there is nothing for the flag to switch (see `TelemetryConfig.available`).
+     */
+    val crashReportsEnabled: Flow<Boolean>
+
+    suspend fun setCrashReportsEnabled(value: Boolean)
+
+    /**
+     * Whether the one-per-install `first_launch` event has already gone out. Without it
+     * the event would be sent on every cold start and the funnel it feeds would count
+     * launches instead of installs.
+     */
+    val firstLaunchReported: Flow<Boolean>
+
+    suspend fun setFirstLaunchReported(value: Boolean)
+
     /** When the last backup was written, epoch millis, or null while there is none. */
     val lastBackupAt: Flow<Long?>
 
@@ -97,6 +115,20 @@ class DataStoreSettingsStore(private val dataStore: DataStore<Preferences>) : Se
         }
     }
 
+    override val crashReportsEnabled: Flow<Boolean> =
+        preferences.map { it[CRASH_REPORTS_ENABLED] ?: true }
+
+    override suspend fun setCrashReportsEnabled(value: Boolean) {
+        dataStore.edit { it[CRASH_REPORTS_ENABLED] = value }
+    }
+
+    override val firstLaunchReported: Flow<Boolean> =
+        preferences.map { it[FIRST_LAUNCH_REPORTED] ?: false }
+
+    override suspend fun setFirstLaunchReported(value: Boolean) {
+        dataStore.edit { it[FIRST_LAUNCH_REPORTED] = value }
+    }
+
     override val lastBackupAt: Flow<Long?> = preferences.map { it[LAST_BACKUP_AT] }
 
     override val lastBackupLocation: Flow<String?> = preferences.map { it[LAST_BACKUP_LOCATION] }
@@ -112,6 +144,8 @@ class DataStoreSettingsStore(private val dataStore: DataStore<Preferences>) : Se
         val NOTIFICATIONS_ASKED = booleanPreferencesKey("notifications_asked")
         val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
         val BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
+        val CRASH_REPORTS_ENABLED = booleanPreferencesKey("crash_reports_enabled")
+        val FIRST_LAUNCH_REPORTED = booleanPreferencesKey("first_launch_reported")
         val LAST_BACKUP_AT = longPreferencesKey("last_backup_at")
         val LAST_BACKUP_LOCATION = stringPreferencesKey("last_backup_location")
     }

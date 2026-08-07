@@ -3,14 +3,17 @@ package com.g3ck0.seriestracker.ui
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import com.g3ck0.seriestracker.BuildConfig
-import com.g3ck0.seriestracker.ui.about.AboutDialog
+import com.g3ck0.seriestracker.ui.about.AboutContent
 import com.g3ck0.seriestracker.ui.about.AboutTags
+import com.g3ck0.seriestracker.ui.about.AboutUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -21,6 +24,9 @@ import org.junit.Test
  * answer: donations appear exactly when the flavour allows them and the build was given
  * somewhere to send them, so the same test passes on `store` (never), on CI's `direct`
  * (no local.properties, so still never) and on a locally configured `direct` (always).
+ *
+ * It drives [AboutContent] rather than `AboutDialog`, which resolves a Hilt ViewModel for
+ * the crash-report switch — the split every screen in this app follows.
  */
 class AboutDialogTest {
 
@@ -35,7 +41,7 @@ class AboutDialogTest {
 
     @Test
     fun donationBlockFollowsTheDistributionFlavour() {
-        compose.setThemedContent { AboutDialog(onDismiss = {}) }
+        compose.setThemedContent { AboutContent() }
 
         if (donationsExpected) {
             compose.onNodeWithTag(AboutTags.DONATE_BLOCK).assertIsDisplayed()
@@ -62,7 +68,7 @@ class AboutDialogTest {
     fun theCopyButtonPutsTheAddressOnTheClipboard() {
         assumeTrue(donationsExpected && BuildConfig.DONATE_USDT.isNotBlank())
 
-        compose.setThemedContent { AboutDialog(onDismiss = {}) }
+        compose.setThemedContent { AboutContent() }
         compose.onNodeWithTag(AboutTags.DONATE_COPY_CRYPTO).performClick()
 
         assertEquals(BuildConfig.DONATE_USDT, clipboardText())
@@ -70,10 +76,80 @@ class AboutDialogTest {
 
     @Test
     fun theTmdbAttributionIsUnaffected() {
-        compose.setThemedContent { AboutDialog(onDismiss = {}) }
+        compose.setThemedContent { AboutContent() }
 
         compose.onNodeWithTag(AboutTags.TMDB_NOTICE).assertIsDisplayed()
         compose.onNodeWithTag(AboutTags.REPO).assertIsDisplayed()
+        compose.onNodeWithTag(AboutTags.VERSION).assertIsDisplayed()
+        compose.onNodeWithText("github.com/simane988/dosmotr").assertIsDisplayed()
+        // TMDB requires this sentence verbatim, so the test spells it out in full. It used
+        // to be asserted from LibraryContentTest, which opened the dialog itself; the
+        // dialog is hosted by LibraryScreen now, so the sentence is checked here.
+        compose.onNodeWithText(
+            "This application uses TMDB and the TMDB APIs but is not endorsed, " +
+                "certified, or otherwise approved by TMDB."
+        ).assertIsDisplayed()
+    }
+
+    // --- feature-18: the crash-report switch ---
+
+    /**
+     * The switch exists only where something can be sent. In `direct` there is no Firebase
+     * compiled in at all, so a switch there would be a promise about code that is absent.
+     */
+    @Test
+    fun theSwitchFollowsWhatTheFlavourCanSend() {
+        compose.setThemedContent {
+            AboutContent(state = AboutUiState(crashReportsAvailable = BuildConfig.CRASH_REPORTING_AVAILABLE))
+        }
+
+        if (BuildConfig.CRASH_REPORTING_AVAILABLE) {
+            compose.onNodeWithTag(AboutTags.CRASH_REPORTS).assertIsDisplayed()
+            compose.onNodeWithText("Отправлять отчёты о падениях").assertIsDisplayed()
+        } else {
+            compose.onNodeWithTag(AboutTags.CRASH_REPORTS).assertDoesNotExist()
+            compose.onNodeWithText("Отправлять отчёты о падениях").assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun theSwitchShowsTheStoredValueAndReportsAChange() {
+        var changedTo: Boolean? = null
+        compose.setThemedContent {
+            AboutContent(
+                state = AboutUiState(crashReportsAvailable = true, crashReportsEnabled = true),
+                onCrashReportsChange = { changedTo = it },
+            )
+        }
+
+        compose.onNodeWithTag(AboutTags.CRASH_REPORTS).assertIsOn().performClick()
+
+        assertEquals(false, changedTo)
+    }
+
+    @Test
+    fun aSwitchedOffBuildDrawsItOff() {
+        compose.setThemedContent {
+            AboutContent(state = AboutUiState(crashReportsAvailable = true, crashReportsEnabled = false))
+        }
+
+        compose.onNodeWithTag(AboutTags.CRASH_REPORTS).assertIsOff()
+    }
+
+    /**
+     * The sentence under the switch is what the privacy policy and the Data Safety form
+     * promise, in the one place a user will actually read it.
+     */
+    @Test
+    fun theSwitchSaysWhatIsNotSent() {
+        compose.setThemedContent {
+            AboutContent(state = AboutUiState(crashReportsAvailable = true))
+        }
+
+        compose.onNodeWithText(
+            "Отправляются только стек падения и обезличенные счётчики действий. " +
+                "Названия тайтлов, поисковые запросы, заметки и оценки не отправляются никогда."
+        ).assertIsDisplayed()
     }
 
     /** The clipboard may only be touched from the main thread. */

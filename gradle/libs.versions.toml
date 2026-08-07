@@ -20,6 +20,12 @@ okhttp = "4.12.0"
 serialization = "1.7.3"
 retrofitSerialization = "1.0.0"
 coil = "2.7.0"
+# Crash reporting, `store` flavour only. The BOM pins Crashlytics and Analytics together;
+# the two Gradle plugins are versioned on their own and are applied only when
+# app/src/store/google-services.json is there.
+firebaseBom = "33.7.0"
+googleServices = "4.4.2"
+firebaseCrashlyticsPlugin = "3.0.2"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
 coroutinesTest = "1.9.0"
@@ -71,6 +77,10 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
+
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-junit = { module = "androidx.test.ext:junit", version.ref = "androidxJunit" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutinesTest" }
@@ -91,3 +101,5 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }

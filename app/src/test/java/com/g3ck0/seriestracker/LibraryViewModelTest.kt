@@ -7,6 +7,7 @@ import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import com.g3ck0.seriestracker.fake.FakeCatalogApi
 import com.g3ck0.seriestracker.fake.FakeSettingsStore
+import com.g3ck0.seriestracker.fake.FakeTelemetry
 import com.g3ck0.seriestracker.fake.FakeTrackerDao
 import com.g3ck0.seriestracker.fake.MainDispatcherRule
 import com.g3ck0.seriestracker.fake.awaitUntil
@@ -37,8 +38,9 @@ class LibraryViewModelTest {
     private val api = FakeCatalogApi()
     private val repository = TrackerRepository(dao, api, "key")
     private val settings = FakeSettingsStore()
+    private val telemetry = FakeTelemetry()
 
-    private fun viewModel() = LibraryViewModel(repository, settings)
+    private fun viewModel() = LibraryViewModel(repository, settings, telemetry)
 
     private fun seedLibrary() {
         dao.seedTitle(tvTitle(id = "tv_1", name = "Dark", status = WatchStatus.WATCHING))
@@ -371,7 +373,7 @@ class LibraryViewModelTest {
     @Test
     fun `notifications are not offered again once the question was asked`() = runTest {
         seedLibrary()
-        val vm = LibraryViewModel(repository, FakeSettingsStore(notificationsAsked = true))
+        val vm = LibraryViewModel(repository, FakeSettingsStore(notificationsAsked = true), telemetry)
 
         vm.state.test {
             val loaded = awaitUntil { !it.loading }
@@ -389,7 +391,7 @@ class LibraryViewModelTest {
 
         vm.state.test {
             assertTrue(awaitUntil { !it.loading }.askNotifications)
-            vm.markNotificationsAsked()
+            vm.markNotificationsAsked(granted = true)
             awaitUntil { !it.askNotifications }
             assertTrue(settings.storedNotificationsAsked)
             cancelAndIgnoreRemainingEvents()
@@ -455,7 +457,7 @@ class LibraryViewModelTest {
     /** No backend configured: the row is not worth a message, and not worth a call either. */
     @Test
     fun `without a backend nothing is requested`() = runTest {
-        val vm = LibraryViewModel(TrackerRepository(dao, api, ""), settings)
+        val vm = LibraryViewModel(TrackerRepository(dao, api, ""), settings, telemetry)
 
         vm.loadSuggestions()
         advanceUntilIdle()

@@ -11,8 +11,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -23,6 +26,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.g3ck0.seriestracker.BuildConfig
 import com.g3ck0.seriestracker.R
 import com.g3ck0.seriestracker.ui.common.DesignDialog
@@ -40,6 +45,25 @@ object AboutTags {
     const val DONATE_CRYPTO = "about:donate:crypto"
     const val DONATE_COPY_SBP = "about:donate:sbp:copy"
     const val DONATE_COPY_CRYPTO = "about:donate:crypto:copy"
+    const val CRASH_REPORTS = "about:crashReports"
+}
+
+/**
+ * Resolves the ViewModel behind the crash-report switch; everything visible is
+ * [AboutContent]'s, which is what the UI tests drive.
+ */
+@Composable
+fun AboutDialog(
+    onDismiss: () -> Unit,
+    viewModel: AboutViewModel = hiltViewModel(),
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    AboutContent(
+        state = state,
+        onDismiss = onDismiss,
+        onCrashReportsChange = viewModel::setCrashReportsEnabled,
+    )
 }
 
 /**
@@ -51,7 +75,11 @@ object AboutTags {
  * coupling, not the obligation.
  */
 @Composable
-fun AboutDialog(onDismiss: () -> Unit) {
+fun AboutContent(
+    state: AboutUiState = AboutUiState(),
+    onDismiss: () -> Unit = {},
+    onCrashReportsChange: (Boolean) -> Unit = {},
+) {
     DesignDialog(
         title = "О приложении",
         onDismiss = onDismiss,
@@ -90,6 +118,17 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     DonateSection()
                 }
 
+                // Absent, not disabled, where nothing can be sent: a switch over an empty
+                // implementation would suggest the `direct` build reports something when
+                // it does not carry the code to.
+                if (state.crashReportsAvailable) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    CrashReportsSwitch(
+                        enabled = state.crashReportsEnabled,
+                        onChange = onCrashReportsChange,
+                    )
+                }
+
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -122,6 +161,43 @@ private const val TMDB_DISCLAIMER =
         "or otherwise approved by TMDB."
 
 private const val REPO_URL = "https://github.com/simane988/dosmotr"
+
+/**
+ * The one thing in this dialog that can be changed rather than read.
+ *
+ * The wording names what is sent *and* what is not, because "данные остаются на
+ * устройстве" is a promise the app makes in its store description and in its privacy
+ * policy — a switch that only said «отчёты о падениях» would leave the reader guessing
+ * whether the titles go too. They do not: what leaves is a stack trace and eleven counters
+ * with no content of their own (see `TelemetryEvent`).
+ */
+@Composable
+private fun CrashReportsSwitch(enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Отправлять отчёты о падениях",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f).padding(end = 12.dp),
+            )
+            Switch(
+                checked = enabled,
+                onCheckedChange = onChange,
+                modifier = Modifier.testTag(AboutTags.CRASH_REPORTS),
+            )
+        }
+        Text(
+            text = "Отправляются только стек падения и обезличенные счётчики действий. " +
+                "Названия тайтлов, поисковые запросы, заметки и оценки не отправляются никогда.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
 
 /** Opens in the browser; the visible text is the URL without its scheme. */
 @Composable

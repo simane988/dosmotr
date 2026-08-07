@@ -27,11 +27,11 @@ donation block is compiled into it and absent from `store`.
 ./gradlew installDirectRelease   # «Досмотр», com.g3ck0.dosmotr — signed, R8 on
 ./gradlew installDirectProfileable    # for performance measurement only
 
-./gradlew testDirectDebugUnitTest     # 139 JVM tests, no device needed
+./gradlew testDirectDebugUnitTest     # 153 JVM tests, no device needed
 ./gradlew testDirectDebugUnitTest --tests "com.g3ck0.seriestracker.LabelsTest"
 ./gradlew testStoreDebugUnitTest      # the other flavour, same tests
 
-./gradlew connectedDirectDebugAndroidTest   # 191 tests, needs a device
+./gradlew connectedDirectDebugAndroidTest   # 196 tests, needs a device
 ./gradlew connectedDirectDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=com.g3ck0.seriestracker.ui.StatsContentTest
 
@@ -163,8 +163,8 @@ One dimension, `distribution`, with two flavours — **`store`** and **`direct`*
 `applicationId`, same signing key: this is one app with two ways of reaching a phone, and
 an APK from GitHub Releases updates to a store build without losing the library.
 
-The only difference is `BuildConfig.DONATIONS_ENABLED`, and it is a legal boundary, not a
-preference:
+Two `BuildConfig` flags differ, `DONATIONS_ENABLED` and `CRASH_REPORTING_AVAILABLE` (see
+"Crash reporting"). The first is a legal boundary, not a preference:
 
 - **part 7 of article 14 of 259-ФЗ** forbids not only accepting digital currency as
   consideration but **distributing information about accepting it**;
@@ -193,6 +193,58 @@ it stops being a gift.
 CI, `release.yml`, `codeql.yml` and both scripts run **`direct` only** — it is the
 superset, so testing `store` as well would double every job to cover strictly less code.
 `storeRelease` is built when there is a store to upload it to (feature-21).
+
+## Crash reporting
+
+Firebase Crashlytics and Analytics are compiled into **`store` only**, behind the
+`Telemetry` interface (`data/telemetry/`). `FirebaseTelemetry` lives in `app/src/store`,
+`NoopTelemetry` in `app/src/direct`, and the Hilt binding is a `TelemetryModule` in each
+flavour source set — it cannot live in `AppModule`, since only one of the two is ever
+compiled. Everything above the interface (ViewModels, `AutoBackupManager`) is flavour-blind.
+
+`direct` carries **no Google code at all**: that is an F-Droid rule and the "никакой
+слежки" promise in `product/02-positioning.md`. The check is
+`./gradlew :app:dependencies --configuration directReleaseRuntimeClasspath`, which must
+print nothing matching `com.google.firebase` — it currently prints 56 such lines for
+`storeReleaseRuntimeClasspath` and 0 for `direct`.
+
+**What may be reported is a closed list**, `TelemetryEvent`: eleven event names and exactly
+two parameter values, `tv` and `movie`. Titles, search queries, notes, ratings, timestamps
+and counts of anything are forbidden — not as a matter of taste but because the store
+description, «О приложении» and the privacy policy all promise the library stays on the
+device, and Data Safety in the Play Console declares the same. `telemetryAllows()` is
+applied inside `FirebaseTelemetry` too, so a bad call is dropped rather than sent, and
+`FakeTelemetry` throws on one (see "Tests"). Adding a twelfth event means editing
+`TelemetryEvent.ALL` *and* the count assertion in `TelemetryTest`.
+
+**`google-services.json` goes in `app/src/store/` and is committed** — it is configuration,
+not a secret; its keys are bound to the package name and signing certificate. Three things
+about it that cost time to find out:
+
+- **A build without it must keep working.** CI has no secrets, and neither does a fork or a
+  fresh clone. So the two Gradle plugins are applied only `if (firebaseConfig.exists())`,
+  and `FirebaseTelemetry` checks `FirebaseApp.getApps()` before touching anything —
+  otherwise every reported event would throw on a build that has no Firebase project.
+- **It needs a client entry per applicationId, suffixes included.** The plugin does not
+  strip `applicationIdSuffix`: with only `com.g3ck0.dosmotr` in the file,
+  `assembleStoreDebug` fails with *"No matching client found for package name
+  'com.g3ck0.dosmotr.debug'"*. The Firebase project therefore needs three Android apps —
+  `com.g3ck0.dosmotr`, `.debug` and `.profileable`.
+- **The plugins are applied to the module, not to a flavour**, so they also create tasks
+  for the `direct` variants, which have no config to read. `app/build.gradle.kts` disables
+  every task whose name contains `Direct` and `GoogleServices`/`Crashlytics`; without that,
+  a machine that *has* the file cannot build `direct` at all.
+
+`storeRelease` uploads its R8 mapping file to Crashlytics (`uploadCrashlyticsMappingFile…`,
+on by default), which is what keeps shipped stack traces readable — it needs the real
+Firebase project and network at build time. The same task is disabled for `direct`.
+
+The switch is «Отправлять отчёты о падениях» in «О приложении», stored in `SettingsStore`
+and applied by `CrashReporting`. Collection starts **off** in `app/src/store/AndroidManifest.xml`
+and is switched on from the stored setting by `CrashReporting.sync()` on every app start —
+the other way round, a build would report once before the setting had been read. That
+manifest also switches off ad-id and Android-id collection, which are exactly the stable
+cross-app identifiers the feature forbids.
 
 ## Memory budget
 
@@ -271,8 +323,10 @@ preserve the tags when restyling. Tags on text fields belong on the editable nod
 **The TMDB attribution is a legal requirement, not decoration.** The library's overflow
 menu opens `AboutDialog`, which carries `res/drawable/ic_tmdb_logo.xml` (TMDB's own asset,
 converted to a vector drawable — do not restyle or recolour it) and their sentence
-verbatim in English. `LibraryContentTest` asserts on the full sentence, so it cannot be
-reworded by accident. The obligation stands while TMDB is the catalogue behind the
+verbatim in English. `AboutDialogTest` asserts on the full sentence, so it cannot be
+reworded by accident — it moved there from `LibraryContentTest` when the dialog gained the
+crash-report switch and with it a ViewModel, so the dialog is hosted by `LibraryScreen` and
+the stateless `LibraryContent` only raises `onAbout`. The obligation stands while TMDB is the catalogue behind the
 backend, even though the app never talks to TMDB itself.
 
 The current design is the Claude Design mock, variant B: floating navigation pill with a
@@ -291,6 +345,12 @@ JVM tests use hand-written fakes (`fake/FakeTrackerDao`, `fake/FakeCatalogApi`),
 `FakeTrackerDao` deliberately mirrors the SQL semantics — conflict strategies, the FK
 cascade, sort order — so **changing the DAO means updating the fake too**; the instrumented
 `TrackerDaoTest` is what proves the real SQL.
+
+`fake/FakeTelemetry` is a fake with teeth: its `event()` **throws** on anything outside
+`TelemetryEvent`'s allow-list instead of recording it. It is injected into every ViewModel
+test, so a call that one day passes a title's name, a search query or a note fails the
+suite here rather than shipping. Do not "fix" such a failure by widening the list — see
+"Crash reporting".
 
 Instrumented tests cover the real Room database, JSON backup merge/replace, all four
 screens and the dark scheme. Espresso 3.7+ is required: older releases crash on Android

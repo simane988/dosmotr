@@ -7,6 +7,8 @@ import com.g3ck0.seriestracker.data.local.EpisodeEntity
 import com.g3ck0.seriestracker.data.local.TitleWithProgress
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
+import com.g3ck0.seriestracker.data.telemetry.Telemetry
+import com.g3ck0.seriestracker.data.telemetry.TelemetryEvent
 import com.g3ck0.seriestracker.ui.common.toUserError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
@@ -41,6 +43,7 @@ data class DetailUiState(
 @HiltViewModel
 class DetailViewModel @Inject constructor(
     private val repository: TrackerRepository,
+    private val telemetry: Telemetry,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -80,13 +83,21 @@ class DetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Only marking counts as `episode_watched`; unchecking a box is a correction, and a
+     * counter that moves in both directions measures nothing. Ticking a whole season or
+     * "всё до этой серии" is not reported either — one tap would otherwise weigh as much
+     * as forty, and the number would say more about the shape of a series than about use.
+     */
     fun toggleEpisode(episode: EpisodeEntity) = viewModelScope.launch {
+        val watched = !episode.watched
         repository.setEpisodeWatched(
             titleId = titleId,
             season = episode.seasonNumber,
             episode = episode.episodeNumber,
-            watched = !episode.watched,
+            watched = watched,
         )
+        if (watched) telemetry.event(TelemetryEvent.EPISODE_WATCHED)
     }
 
     fun toggleSeason(season: Season) = viewModelScope.launch {
@@ -100,6 +111,7 @@ class DetailViewModel @Inject constructor(
 
     fun markNext() = viewModelScope.launch {
         val next = repository.markNextWatched(titleId)
+        if (next != null) telemetry.event(TelemetryEvent.EPISODE_WATCHED)
         message.value = next?.let { "Отмечено: S%02dE%02d".format(it.seasonNumber, it.episodeNumber) }
             ?: "Все серии уже отмечены"
     }

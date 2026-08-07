@@ -5,6 +5,10 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.hilt) apply false
+    // Declared here only to put them on the build classpath. Whether they are applied at
+    // all is decided in app/build.gradle.kts, by whether google-services.json exists.
+    alias(libs.plugins.google.services) apply false
+    alias(libs.plugins.firebase.crashlytics) apply false
     alias(libs.plugins.detekt)
 }
 

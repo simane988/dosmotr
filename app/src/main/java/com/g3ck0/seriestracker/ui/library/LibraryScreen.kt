@@ -157,9 +157,11 @@ fun LibraryScreen(
     var askImportMode by remember { mutableStateOf(false) }
     var importMode by remember { mutableStateOf(ImportMode.MERGE) }
 
-    // Hosted here rather than in LibraryContent: the dialog resolves a ViewModel of its
-    // own, and the stateless half has to keep working in tests without Hilt.
+    // Hosted here rather than in LibraryContent: the dialogs resolve ViewModels of their
+    // own, and the stateless half has to keep working in tests without Hilt. The about
+    // dialog moved up here when it gained the crash-report switch.
     var autoBackupOpen by remember { mutableStateOf(false) }
+    var aboutOpen by remember { mutableStateOf(false) }
 
     // The ViewModel outlives this composable, so entering the screen is what re-sorts the
     // library; while it is open the order stays put (see LibraryViewModel.pinnedOrder).
@@ -186,7 +188,7 @@ fun LibraryScreen(
     // Whatever the answer, the question has been put — so the prompt goes away either way.
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { viewModel.markNotificationsAsked() }
+    ) { granted -> viewModel.markNotificationsAsked(granted) }
 
     // The ViewModel knows there is something to notify about; only here is it known
     // whether the platform has anything left to ask. Below API 33 the permission is
@@ -238,6 +240,8 @@ fun LibraryScreen(
 
     if (autoBackupOpen) AutoBackupDialog(onDismiss = { autoBackupOpen = false })
 
+    if (aboutOpen) AboutDialog(onDismiss = { aboutOpen = false })
+
     LibraryContent(
         state = state.copy(askNotifications = state.askNotifications && canAskNotifications),
         message = state.message ?: backupState.message?.let { LibraryMessage(it) },
@@ -257,6 +261,10 @@ fun LibraryScreen(
         onExport = { exportLauncher.launch(backupViewModel.suggestedFileName()) },
         onImport = { askImportMode = true },
         onAutoBackup = { autoBackupOpen = true },
+        onAbout = {
+            viewModel.aboutOpened()
+            aboutOpen = true
+        },
         onEnableNotifications = { notificationPermission.launch(POST_NOTIFICATIONS) },
         onOpenSuggestion = { viewModel.addSuggestion(it) },
         onAddManual = { name, type, seasons, runtime, year ->
@@ -289,15 +297,13 @@ fun LibraryContent(
     onExport: () -> Unit = {},
     onImport: () -> Unit = {},
     onAutoBackup: () -> Unit = {},
+    onAbout: () -> Unit = {},
     onEnableNotifications: () -> Unit = {},
     onOpenSuggestion: (SearchItem) -> Unit = {},
     onAddManual: (String, MediaType, List<Int>, Int, String?) -> Unit = { _, _, _, _, _ -> },
 ) {
     val snackbar = remember { SnackbarHostState() }
-    var aboutOpen by remember { mutableStateOf(false) }
     var manualOpen by remember { mutableStateOf(false) }
-
-    if (aboutOpen) AboutDialog(onDismiss = { aboutOpen = false })
 
     // The filter field is hidden on an empty library, but the dialog leaves a focused text
     // field behind either way — and a keyboard over the navigation pill eats the next tap.
@@ -342,7 +348,7 @@ fun LibraryContent(
                         onExport = onExport,
                         onImport = onImport,
                         onAutoBackup = onAutoBackup,
-                        onAbout = { aboutOpen = true },
+                        onAbout = onAbout,
                         modifier = modifier,
                     )
                 }

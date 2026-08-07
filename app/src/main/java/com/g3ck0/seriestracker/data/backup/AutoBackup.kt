@@ -1,6 +1,8 @@
 package com.g3ck0.seriestracker.data.backup
 
 import com.g3ck0.seriestracker.data.settings.SettingsStore
+import com.g3ck0.seriestracker.data.telemetry.Telemetry
+import com.g3ck0.seriestracker.data.telemetry.TelemetryEvent
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -92,6 +94,7 @@ class AutoBackupManager @Inject constructor(
     private val settings: SettingsStore,
     private val storage: AutoBackupStorage,
     private val scheduler: AutoBackupScheduler,
+    private val telemetry: Telemetry,
 ) {
 
     /**
@@ -115,9 +118,18 @@ class AutoBackupManager @Inject constructor(
     /** Where the next backup would go, for the dialog to name before anything has run. */
     suspend fun folderLabel(): String = storage.openFolder().label
 
-    /** The worker's body: the setting is checked here, not in the worker. */
+    /**
+     * The worker's body: the setting is checked here, not in the worker.
+     *
+     * `backup_auto_ok` is reported from here and not from [runNow], because what is worth
+     * knowing is whether the *unattended* backup works on real phones — a manual run is
+     * someone watching the result anyway. Nothing about the file is reported: not its name,
+     * not where it went, not how many titles it holds.
+     */
     suspend fun runScheduled(): AutoBackupResult =
-        if (settings.autoBackupEnabled.first()) run() else {
+        if (settings.autoBackupEnabled.first()) {
+            run().also { if (it is AutoBackupResult.Written) telemetry.event(TelemetryEvent.BACKUP_AUTO_OK) }
+        } else {
             AutoBackupResult.Skipped("Автобэкап выключен")
         }
 

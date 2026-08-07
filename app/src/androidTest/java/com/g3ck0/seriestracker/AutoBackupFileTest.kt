@@ -18,6 +18,7 @@ import com.g3ck0.seriestracker.data.local.TitleEntity
 import com.g3ck0.seriestracker.data.local.TrackerDao
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.settings.SettingsStore
+import com.g3ck0.seriestracker.data.telemetry.Telemetry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -59,6 +60,7 @@ class AutoBackupFileTest {
             settings = settings,
             storage = AndroidBackupStorage(context, settings),
             scheduler = NoScheduler,
+            telemetry = NoTelemetry,
         )
         directory = File(context.filesDir, "backups")
         directory.deleteRecursively()
@@ -163,6 +165,13 @@ class AutoBackupFileTest {
         override fun cancel() = Unit
     }
 
+    /** This test is about the files on disk; what was reported is `TelemetryTest`'s business. */
+    private object NoTelemetry : Telemetry {
+        override fun event(name: String, param: String?) = Unit
+        override fun nonFatal(t: Throwable) = Unit
+        override fun setEnabled(enabled: Boolean) = Unit
+    }
+
     /**
      * The app's own DataStore is a file shared with whatever else the process is doing;
      * this test only needs the values to come back, so it keeps them in memory.
@@ -171,6 +180,8 @@ class AutoBackupFileTest {
         private val asked = MutableStateFlow(false)
         private val enabled = MutableStateFlow(true)
         private val folder = MutableStateFlow<String?>(null)
+        private val crashReports = MutableStateFlow(true)
+        private val firstLaunch = MutableStateFlow(false)
         private val backupAt = MutableStateFlow<Long?>(null)
         private val location = MutableStateFlow<String?>(null)
 
@@ -187,6 +198,16 @@ class AutoBackupFileTest {
         override val backupFolderUri: Flow<String?> = folder
         override suspend fun setBackupFolderUri(value: String?) {
             folder.value = value
+        }
+
+        override val crashReportsEnabled: Flow<Boolean> = crashReports
+        override suspend fun setCrashReportsEnabled(value: Boolean) {
+            crashReports.value = value
+        }
+
+        override val firstLaunchReported: Flow<Boolean> = firstLaunch
+        override suspend fun setFirstLaunchReported(value: Boolean) {
+            firstLaunch.value = value
         }
 
         override val lastBackupAt: Flow<Long?> = backupAt
