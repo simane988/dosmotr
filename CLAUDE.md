@@ -15,26 +15,35 @@ export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH
 
 ## Commands
 
+**Every task name carries a flavour.** `store` and `direct` (see "Distribution flavours"
+below) multiply the variants, so `installDebug`, `testDebugUnitTest` and
+`connectedDebugAndroidTest` no longer exist — Gradle fails with "task not found" rather
+than picking one. `direct` is the default everywhere: it is the superset, since the
+donation block is compiled into it and absent from `store`.
+
 ```bash
-./gradlew installDebug           # «Досмотр debug», com.g3ck0.dosmotr.debug
-./gradlew installRelease         # «Досмотр», com.g3ck0.dosmotr — signed, R8 on
-./gradlew installProfileable     # for performance measurement only
+./gradlew installDirectDebug     # «Досмотр debug», com.g3ck0.dosmotr.debug
+./gradlew installStoreDebug      # same app id — replaces the above on the device
+./gradlew installDirectRelease   # «Досмотр», com.g3ck0.dosmotr — signed, R8 on
+./gradlew installDirectProfileable    # for performance measurement only
 
-./gradlew testDebugUnitTest      # 82 JVM tests, no device needed
-./gradlew testDebugUnitTest --tests "com.g3ck0.seriestracker.LabelsTest"
+./gradlew testDirectDebugUnitTest     # 139 JVM tests, no device needed
+./gradlew testDirectDebugUnitTest --tests "com.g3ck0.seriestracker.LabelsTest"
+./gradlew testStoreDebugUnitTest      # the other flavour, same tests
 
-./gradlew connectedDebugAndroidTest   # 107 tests, needs a device
-./gradlew connectedDebugAndroidTest \
+./gradlew connectedDirectDebugAndroidTest   # 191 tests, needs a device
+./gradlew connectedDirectDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=com.g3ck0.seriestracker.ui.StatsContentTest
 
 scripts/emulator.sh gui          # local AVD in a window — the fast path, see below
 scripts/emulator.sh test         # start on the GPU, run the suite, shut it down again
 scripts/emulator.sh test --headless   # the swiftshader path CI uses, for reproducing it
 scripts/emulator.sh test --keep       # leave it up afterwards
+FLAVOR=store scripts/emulator.sh test  # the store variant instead of direct
 
-./gradlew :app:lintDebug         # what CI's `static` job fails on
+./gradlew :app:lintDirectDebug   # what CI's `static` job fails on
 ./gradlew detekt                 # applied at the root, covers app/src entirely
-./gradlew :app:updateLintBaseline  # after fixing (or accepting) findings
+./gradlew :app:updateLintBaselineDirectDebug  # after fixing (or accepting) findings
 ./gradlew detektBaseline
 ```
 
@@ -43,16 +52,19 @@ rather than raising `gradle.properties`:
 
 ```bash
 ./gradlew --no-daemon -Dorg.gradle.jvmargs="-Xmx1280m -XX:MaxMetaspaceSize=512m" \
-  -Dkotlin.daemon.jvmargs=-Xmx1g :app:lintDebug
+  -Dkotlin.daemon.jvmargs=-Xmx1g :app:lintDirectDebug
 ```
 
 **Wake the screen before instrumented tests** — `adb shell input keyevent KEYCODE_WAKEUP`.
 With the display dozing, Compose UI tests fail on assertions about rendered text; the
 same tests pass once it is awake. This is reproducible, not flaky hardware.
 
-`connectedDebugAndroidTest` is finalized by `installDebug` (see the bottom of
-`app/build.gradle.kts`): AGP uninstalls both APKs when it finishes, which used to leave
-the phone with no build on it. The finalizer runs even when tests fail.
+`connected<Flavour>DebugAndroidTest` is finalized by `install<Flavour>Debug` (see the
+bottom of `app/build.gradle.kts`): AGP uninstalls both APKs when it finishes, which used
+to leave the phone with no build on it. The finalizer runs even when tests fail. It
+matches the task by pattern rather than by name, because an equality check against
+`connectedDebugAndroidTest` stopped matching anything the moment flavours were added —
+silently, with the bare phone as the only symptom.
 
 ### Local emulator
 
@@ -92,7 +104,7 @@ in the pipeline.
 
 Two things the script exists to get right:
 
-- **`test` pins `ANDROID_SERIAL`.** `connectedDebugAndroidTest` installs on *every*
+- **`test` pins `ANDROID_SERIAL`.** `connectedDirectDebugAndroidTest` installs on *every*
   connected device, so a phone plugged in beside the emulator runs the whole suite twice.
 - **It applies what CI's `disable-animations: true` applies** — all three animation
   scales — plus the `KEYCODE_WAKEUP` above, on every start.
@@ -114,8 +126,9 @@ of swap. Without it the OOM killer takes the build.
 
 ## Secrets and signing
 
-`local.properties` holds `backend.url` / `backend.token` and the `release.*` signing
-credentials; `keystore/dosmotr-release.jks` holds the key. Both are gitignored and exist
+`local.properties` holds `backend.url` / `backend.token`, the `donate.*` destinations (see
+"Distribution flavours") and the `release.*` signing credentials;
+`keystore/dosmotr-release.jks` holds the key. Both are gitignored and exist
 only on this machine — losing the keystore means never being able to update a published
 build.
 
@@ -143,6 +156,43 @@ The backend is a **separate project**, not part of this build: `~/projects/dosmo
 (nginx + Caddy, deployed with Docker Compose). Nothing here depends on it at compile
 time — the coupling is the two `local.properties` values, the `X-Backend-Token` header
 name, and the `/v1` paths above.
+
+## Distribution flavours
+
+One dimension, `distribution`, with two flavours — **`store`** and **`direct`**. Same
+`applicationId`, same signing key: this is one app with two ways of reaching a phone, and
+an APK from GitHub Releases updates to a store build without losing the library.
+
+The only difference is `BuildConfig.DONATIONS_ENABLED`, and it is a legal boundary, not a
+preference:
+
+- **part 7 of article 14 of 259-ФЗ** forbids not only accepting digital currency as
+  consideration but **distributing information about accepting it**;
+- **Google Play** requires its own billing for in-app payments, which a Russian account
+  cannot use at all, so an external donate button reads as circumventing the payment
+  policy;
+- **RuStore** requires compliance with Russian law, and arguing the point with moderation
+  costs weeks.
+
+So `store` carries no donation UI *and no wallet address*: the `DONATE_URL` / `DONATE_SBP`
+/ `DONATE_USDT` fields are compiled in as empty strings there, and `AboutDialogTest`
+asserts it. Hiding the block at runtime would not be enough — the string would still ship.
+
+The destinations themselves live in `local.properties` (`donate.url`, `donate.sbp`,
+`donate.usdt`), like the backend credentials. Not because a wallet address is secret — it
+is public by nature — but because an address baked into a public repository cannot be
+changed without a release and is an invitation to swap it in a fork. **Missing values are
+a supported state**: `direct` then has nothing to show and hides the block, which is
+exactly what CI builds and what a fresh clone gets.
+
+Wording in that block is constrained by `product/09-donations.md` and must not drift:
+nothing is given in return (no feature, no badge, no thank-you), no amounts are named, and
+it supports *the author*, not the app or a feature. The moment a donation buys something
+it stops being a gift.
+
+CI, `release.yml`, `codeql.yml` and both scripts run **`direct` only** — it is the
+superset, so testing `store` as well would double every job to cover strictly less code.
+`storeRelease` is built when there is a store to upload it to (feature-21).
 
 ## Memory budget
 
@@ -488,7 +538,9 @@ CI does not resolve conflicts.
 
 Static analysis is baselined, so both tools fail on findings a commit *introduces*:
 
-- `app/lint-baseline.xml` (regenerate with `./gradlew :app:updateLintBaseline`). The `lint`
+- `app/lint-baseline.xml` (regenerate with `./gradlew :app:updateLintBaselineDirectDebug` —
+  the bare `updateLintBaseline` uses whatever AGP considers the default variant, which is
+  not the one CI checks). The `lint`
   block in `app/build.gradle.kts` has `warningsAsErrors`, and switches off the checks that
   are decisions rather than defects: `MissingTranslation`/`HardcodedText` (the app is
   Russian-only) and `GradleDependency`/`AndroidGradlePluginVersion`/`OldTargetApi` (a
@@ -514,7 +566,7 @@ Security jobs, and why each one is where it is:
   `.github/workflows/dependency-graph.yml` (master/develop + weekly), which is what makes
   Dependabot alerts appear at all. **Both submit the same filtered graph** —
   `DEPENDENCY_GRAPH_INCLUDE_PROJECTS=^:app$` and
-  `DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS=^releaseRuntimeClasspath$` — for two reasons:
+  `DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS=^directReleaseRuntimeClasspath$` — for two reasons:
   unfiltered, the graph carries Gradle's own plugin classpath (AGP drags in Bouncy Castle,
   protobuf, netty), so an advisory against a build tool fails a PR over code no user runs;
   and the PR snapshot is diffed against whatever the base branch last submitted, so the two

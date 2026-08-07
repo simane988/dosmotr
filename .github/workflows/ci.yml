@@ -35,6 +35,13 @@ env:
     -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
     -Dkotlin.daemon.jvmargs=-Xmx2g
 
+# The `distribution` flavours (store / direct) doubled every build task. Everything here
+# runs on `direct` only: it is the superset — the donation block is compiled in there and
+# absent from `store` — so testing both would double the pipeline to cover strictly less
+# code. `store` is verified where it is built, in the release workflow.
+# CI has no local.properties, so `direct` here has no donation destinations either, and
+# AboutDialogTest asserts exactly that: the block appears only when there is one.
+
 jobs:
   decide:
     name: Decide whether to run
@@ -123,7 +130,7 @@ jobs:
       # Both tools are baselined (app/lint-baseline.xml, config/detekt/baseline.xml), so
       # they fail on findings this commit introduced, not on the ones it inherited.
       - name: Android Lint
-        run: ./gradlew ${{ env.GRADLE_ARGS }} :app:lintDebug
+        run: ./gradlew ${{ env.GRADLE_ARGS }} :app:lintDirectDebug
 
       - name: detekt
         run: ./gradlew ${{ env.GRADLE_ARGS }} detekt
@@ -141,7 +148,7 @@ jobs:
         with:
           name: static-analysis-reports
           path: |
-            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-directDebug.html
             build/reports/detekt
 
   secrets:
@@ -196,7 +203,7 @@ jobs:
           # against a build tool would fail a pull request over something no user ever runs.
           # Keep this identical to dependency-graph.yml or the two snapshots cannot be diffed.
           DEPENDENCY_GRAPH_INCLUDE_PROJECTS: '^:app$'
-          DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS: '^releaseRuntimeClasspath$'
+          DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS: '^directReleaseRuntimeClasspath$'
 
       - uses: actions/dependency-review-action@v4
         with:
@@ -223,16 +230,16 @@ jobs:
       # No backend.url: the app is meant to build without one, and asserting that here
       # is what stops a change from quietly making the credentials mandatory.
       - name: Run unit tests
-        run: ./gradlew ${{ env.GRADLE_ARGS }} testDebugUnitTest
+        run: ./gradlew ${{ env.GRADLE_ARGS }} testDirectDebugUnitTest
 
       - name: Assemble debug
-        run: ./gradlew ${{ env.GRADLE_ARGS }} assembleDebug
+        run: ./gradlew ${{ env.GRADLE_ARGS }} assembleDirectDebug
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: unit-test-report
-          path: app/build/reports/tests/testDebugUnitTest
+          path: app/build/reports/tests/testDirectDebugUnitTest
 
   instrumented:
     name: Instrumented tests (API 35)
@@ -275,7 +282,7 @@ jobs:
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -no-snapshot
           disable-animations: true
-          script: ./gradlew ${{ env.GRADLE_ARGS }} connectedDebugAndroidTest
+          script: ./gradlew ${{ env.GRADLE_ARGS }} connectedDirectDebugAndroidTest
 
       - uses: actions/upload-artifact@v4
         if: failure()

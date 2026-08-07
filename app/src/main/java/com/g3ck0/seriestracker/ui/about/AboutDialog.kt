@@ -34,6 +34,12 @@ object AboutTags {
     const val REPO = "about:repo"
     const val TMDB_NOTICE = "about:tmdb"
     const val CLOSE = "about:close"
+    const val DONATE_BLOCK = "about:donate"
+    const val DONATE_LINK = "about:donate:link"
+    const val DONATE_SBP = "about:donate:sbp"
+    const val DONATE_CRYPTO = "about:donate:crypto"
+    const val DONATE_COPY_SBP = "about:donate:sbp:copy"
+    const val DONATE_COPY_CRYPTO = "about:donate:crypto:copy"
 }
 
 /**
@@ -75,6 +81,14 @@ fun AboutDialog(onDismiss: () -> Unit) {
 
                 Text("Открытый исходный код:")
                 RepoLink()
+
+                // What makes the store build safe is not this branch but what it has to
+                // show: DONATE_* are compiled in as empty strings there, so the addresses
+                // are not in the APK at all, whatever R8 does with the code around them.
+                if (DonateConfig.visible) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    DonateSection()
+                }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 

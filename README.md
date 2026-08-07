@@ -41,13 +41,16 @@ Coil · Navigation Compose. minSdk 26, compileSdk 35.
    backend.token=твой_токен
    ```
 
+   Ключи `donate.*` (см. `local.properties.example`) заполнять не нужно: без них
+   собирается флейвор `direct` без блока донатов — см. «Сборки» ниже.
+
 4. Собери:
 
    ```bash
-   ./gradlew assembleDebug      # apk в app/build/outputs/apk/debug/
-   ./gradlew installDebug       # на подключённое устройство
-   ./gradlew test               # юнит-тесты
-   ./gradlew installProfileable # сборка для замеров производительности
+   ./gradlew assembleDirectDebug      # apk в app/build/outputs/apk/direct/debug/
+   ./gradlew installDirectDebug       # на подключённое устройство
+   ./gradlew test                     # юнит-тесты
+   ./gradlew installDirectProfileable # сборка для замеров производительности
    ```
 
    Wrapper-jar в репозитории нет. Если `./gradlew` не запускается, один раз выполни
@@ -62,6 +65,25 @@ Coil · Navigation Compose. minSdk 26, compileSdk 35.
 берёт данные — его дело; источник можно сменить на сервере, не выпуская новую сборку.
 Язык и фильтрация контента прибиты там же, потому что это свойства источника,
 а не клиента.
+
+## Сборки
+
+Флейворов два, `applicationId` и ключ подписи у них общие — это одно приложение,
+а не два, и APK с GitHub Releases обновляется магазинной сборкой без потери библиотеки.
+
+| Флейвор  | Куда                          | Донаты |
+|----------|-------------------------------|--------|
+| `direct` | GitHub Releases, IzzyOnDroid  | есть, если заполнены `donate.*` |
+| `store`  | RuStore, Google Play          | нет — ни блока, ни адреса в APK |
+
+Разница только в этом, и она не вкусовая: часть 7 статьи 14 259-ФЗ запрещает
+распространение информации о приёме цифровой валюты, а внешняя кнопка перевода
+читается Google Play как обход их биллинга. Поэтому в `store` не «спрятан» блок —
+там пустые строки вместо адресов, то есть адреса нет и в самом APK.
+
+Каждая задача Gradle называется с флейвором: `installDirectDebug`,
+`testStoreDebugUnitTest`, `connectedDirectDebugAndroidTest`. Просто `installDebug`
+больше нет.
 
 ## Структура
 
@@ -94,11 +116,11 @@ app/src/main/java/com/g3ck0/seriestracker/
 
 ## Тесты
 
-179 тестов: 80 на JVM и 99 на устройстве. Прогон:
+330 тестов: 139 на JVM и 191 на устройстве. Прогон:
 
 ```bash
-./gradlew testDebugUnitTest        # 80, секунды, без устройства
-./gradlew connectedDebugAndroidTest # 99, нужен телефон или эмулятор
+./gradlew testDirectDebugUnitTest        # секунды, без устройства
+./gradlew connectedDirectDebugAndroidTest # нужен телефон или эмулятор
 ```
 
 **JVM (`app/src/test`)** — логика без Android. Опираются на рукописные фейки
@@ -119,6 +141,7 @@ app/src/main/java/com/g3ck0/seriestracker/
 | `TrackerDaoTest` | реальный SQL: каскады, `IGNORE` vs `Upsert`, порядок библиотеки, статистика |
 | `BackupRepositoryTest` | merge/replace, объединение отметок, битые и «будущие» файлы |
 | `LibraryContentTest`, `SearchContentTest`, `DetailContentTest`, `StatsContentTest` | экраны |
+| `AboutDialogTest` | блок донатов есть ровно там, где разрешён флейвором; в `store` нет и адресов |
 | `DarkThemeTest` | те же экраны в тёмной схеме |
 
 Тесты рисуют контент через `setThemedContent` (`ui/ThemedContent.kt`), а не голым

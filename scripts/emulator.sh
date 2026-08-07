@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Local emulator for instrumented tests, so `connectedDebugAndroidTest` does not
+# Local emulator for instrumented tests, so `connectedDirectDebugAndroidTest` does not
 # need the phone on USB.
 #
 # The AVD mirrors the `instrumented` job in .github/workflows/ci.yml: API 35,
@@ -14,6 +14,7 @@
 #   scripts/emulator.sh test     # start on the GPU, run the suite, shut it down again
 #   scripts/emulator.sh test --headless   # the slow swiftshader path CI uses
 #   scripts/emulator.sh test --keep       # leave the emulator up afterwards
+#   FLAVOR=store scripts/emulator.sh test # the store variant instead of direct
 #
 # `test` puts back what it found: an emulator it started is stopped when the suite
 # ends (however it ends — failure, Ctrl-C), because 2.3G held for the rest of the
@@ -38,7 +39,7 @@
 # asking for when a test fails only in the pipeline and has to be reproduced.
 #
 # Use `test` rather than calling Gradle directly whenever the phone might also be
-# plugged in: connectedDebugAndroidTest installs on *every* connected device, so
+# plugged in: the connected*AndroidTest tasks install on *every* connected device, so
 # an attached phone means the suite runs twice. `test` pins ANDROID_SERIAL to the
 # emulator, which is the only thing that stops it.
 
@@ -50,6 +51,13 @@ export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$
 
 AVD_NAME=${AVD_NAME:-dosmotr_ci_35}
 BOOT_TIMEOUT=${BOOT_TIMEOUT:-300}
+
+# The distribution flavours (store / direct) renamed connectedDebugAndroidTest, so the
+# task has to be spelled out. `direct` is what CI runs and the superset of the two — the
+# donation block is compiled in there — so it is the default here as well.
+# FLAVOR=store scripts/emulator.sh test runs the store variant instead.
+FLAVOR=${FLAVOR:-direct}
+TEST_TASK="connected${FLAVOR^}DebugAndroidTest"
 
 # Headless: same flags as the CI job. Software rendering is deliberate here — with
 # -no-window the host GL path is the flaky one, and swiftshader is what the pipeline
@@ -296,17 +304,17 @@ cmd_test() {
   (( attached > 1 )) && log "$attached devices attached — pinning to $serial"
 
   cd "$(dirname "${BASH_SOURCE[0]}")/.."
-  log "connectedDebugAndroidTest on $serial"
+  log "$TEST_TASK on $serial"
 
   # Ctrl-C during the suite must not leak the emulator either.
   if (( own )); then
     trap 'warn "interrupted — stopping the emulator"; cmd_stop; exit 130' INT TERM
   fi
 
-  # AGP's finalizer reinstalls debug after the run (see app/build.gradle.kts), so
-  # the emulator keeps a build on it either way.
+  # AGP's finalizer reinstalls the same variant after the run (see app/build.gradle.kts),
+  # so the emulator keeps a build on it either way.
   local rc=0
-  ANDROID_SERIAL="$serial" ./gradlew connectedDebugAndroidTest "${@}" || rc=$?
+  ANDROID_SERIAL="$serial" ./gradlew "$TEST_TASK" "${@}" || rc=$?
 
   if (( own )); then
     trap - INT TERM

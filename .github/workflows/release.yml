@@ -125,10 +125,13 @@ jobs:
           PROPS
 
       - name: Run unit tests
-        run: ./gradlew ${{ env.GRADLE_ARGS }} testReleaseUnitTest
+        run: ./gradlew ${{ env.GRADLE_ARGS }} testDirectReleaseUnitTest
 
+      # `direct` is the flavour that goes on the Releases page: it carries the donation
+      # block, which is exactly what a store build may not have. The `store` APK is built
+      # by whoever uploads it to RuStore/Google Play — feature-21 automates that side.
       - name: Build the release APK
-        run: ./gradlew ${{ env.GRADLE_ARGS }} assembleRelease
+        run: ./gradlew ${{ env.GRADLE_ARGS }} assembleDirectRelease
 
       # An unsigned or debug-signed APK installs fine on a fresh phone and then refuses
       # to update the real one, so it is worth failing the release over.
@@ -136,8 +139,8 @@ jobs:
         run: |
           set -euo pipefail
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
-          "$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
-          mv app/build/outputs/apk/release/app-release.apk \
+          "$apksigner" verify --print-certs app/build/outputs/apk/direct/release/app-direct-release.apk
+          mv app/build/outputs/apk/direct/release/app-direct-release.apk \
              "dosmotr-${{ steps.version.outputs.name }}.apk"
 
       - name: Publish the release

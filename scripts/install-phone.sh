@@ -5,6 +5,7 @@
 #   scripts/install-phone.sh                 # debug, develop
 #   scripts/install-phone.sh feature/foo     # that branch
 #   scripts/install-phone.sh --production    # the signed release build instead
+#   scripts/install-phone.sh --store         # the store flavour (no donation block)
 #   scripts/install-phone.sh --no-fetch v1   # skip the fetch/fast-forward
 #   scripts/install-phone.sh --keep-branch   # stay on the built branch afterwards
 #   scripts/install-phone.sh --serial XXX    # when more than one phone is plugged in
@@ -15,7 +16,7 @@
 #
 # Three things this exists to get right:
 #
-# - ANDROID_SERIAL is pinned to a *physical* device. `installDebug` installs on
+# - ANDROID_SERIAL is pinned to a *physical* device. An install task installs on
 #   every connected device, so with the emulator up the APK also lands there —
 #   and an emulator-only run silently installs nothing on the phone.
 # - The branch you were on is restored when the build ends, however it ends.
@@ -40,6 +41,7 @@ SERIAL=${ANDROID_SERIAL:-}
 FETCH=1
 KEEP_BRANCH=0
 PRODUCTION=0
+STORE=0
 
 while (($#)); do
   case "$1" in
@@ -47,7 +49,9 @@ while (($#)); do
     --no-fetch) FETCH=0; shift ;;
     --keep-branch) KEEP_BRANCH=1; shift ;;
     --production|--release) PRODUCTION=1; shift ;;
-    -h|--help) sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
+    --store) STORE=1; shift ;;
+    --direct) STORE=0; shift ;;
+    -h|--help) sed -n '2,29p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) [[ -n $BRANCH ]] && { echo "only one branch, got '$BRANCH' and '$1'" >&2; exit 2; }
        BRANCH=$1; shift ;;
@@ -55,14 +59,22 @@ while (($#)); do
 done
 BRANCH=${BRANCH:-develop}
 
+# Product flavours: `direct` is the build that goes on GitHub Releases and carries the
+# donation block; `store` is the one for RuStore/Google Play, which may not mention it.
+# Same applicationId and key either way, so one replaces the other on the phone — which
+# is the point of --store, since that swap is what has to be checked by hand.
+FLAVOR=direct
+((STORE)) && FLAVOR=store
+CAPITALISED=${FLAVOR^}
+
 if ((PRODUCTION)); then
-  GRADLE_TASK=installRelease
+  GRADLE_TASK=install${CAPITALISED}Release
   PACKAGE=com.g3ck0.dosmotr
-  VARIANT="release (signed, R8)"
+  VARIANT="$FLAVOR release (signed, R8)"
 else
-  GRADLE_TASK=installDebug
+  GRADLE_TASK=install${CAPITALISED}Debug
   PACKAGE=com.g3ck0.dosmotr.debug
-  VARIANT=debug
+  VARIANT="$FLAVOR debug"
 fi
 
 die() { echo "error: $*" >&2; exit 1; }
