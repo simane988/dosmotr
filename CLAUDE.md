@@ -587,3 +587,11 @@ Releasing needs six repository secrets, and CI fails loudly if any is missing:
 `KEY_ALIAS`, `KEY_PASSWORD`, `BACKEND_URL`, `BACKEND_TOKEN`. They exist only as secrets
 and are written into `local.properties` for the length of one job, so the build has
 exactly one way to find them either way.
+
+Three more are **optional**: `DONATE_URL`, `DONATE_SBP`, `DONATE_USDT`. They go into the
+same `local.properties` and are what puts the donation block into the published APK —
+the Releases build is `direct`, so without them it ships with nothing to show. A release
+must not fail over a wallet address, so a missing one is a `::warning::` rather than an
+error; that warning is the only sign, and it is worth reading. Setting them does **not**
+leak anything into a store build: `store` compiles the fields as empty strings whatever
+`local.properties` says (see "Distribution flavours").
