@@ -55,7 +55,7 @@ jobs:
           ./gradlew --no-daemon --parallel \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
             -Dkotlin.daemon.jvmargs=-Xmx2g \
-            assembleDebug
+            assembleDirectDebug
 
       - uses: github/codeql-action/analyze@v3
         with:

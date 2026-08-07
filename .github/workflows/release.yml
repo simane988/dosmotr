@@ -94,9 +94,10 @@ jobs:
           git commit -m "chore: release $name ($code) [skip ci]"
           git push origin HEAD:"$GITHUB_REF_NAME"
 
-      # The signing material and the backend credentials only exist as secrets. Writing
-      # them here keeps build.gradle.kts with exactly one way to find them.
-      - name: Restore signing and backend configuration
+      # The signing material, the backend credentials and the donation destinations only
+      # exist as secrets. Writing them here keeps build.gradle.kts with exactly one way to
+      # find them.
+      - name: Restore signing, backend and donation configuration
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -104,6 +105,14 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           BACKEND_URL: ${{ secrets.BACKEND_URL }}
           BACKEND_TOKEN: ${{ secrets.BACKEND_TOKEN }}
+          # This is the build that carries the donation block — the APK on the Releases
+          # page is the `direct` one, and without these three it would go out with nothing
+          # to show, which is the whole feature missing rather than a build failure.
+          # Deliberately not in the `required` list below: an empty destination is a
+          # supported state everywhere else, and a release must not fail over one.
+          DONATE_URL: ${{ secrets.DONATE_URL }}
+          DONATE_SBP: ${{ secrets.DONATE_SBP }}
+          DONATE_USDT: ${{ secrets.DONATE_USDT }}
         run: |
           set -euo pipefail
           for required in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD BACKEND_URL BACKEND_TOKEN; do
@@ -112,12 +121,20 @@ jobs:
               exit 1
             fi
           done
+          # Worth saying out loud: a `direct` release with no destinations builds fine and
+          # silently ships without the block, which is exactly the failure nobody notices.
+          if [ -z "$DONATE_URL$DONATE_SBP$DONATE_USDT" ]; then
+            echo "::warning::no DONATE_* secrets — this APK ships without the donation block"
+          fi
           mkdir -p keystore
           echo "$KEYSTORE_BASE64" | base64 -d > keystore/dosmotr-release.jks
           # Written with a heredoc so nothing here lands in the log.
           cat > local.properties <<PROPS
           backend.url=$BACKEND_URL
           backend.token=$BACKEND_TOKEN
+          donate.url=$DONATE_URL
+          donate.sbp=$DONATE_SBP
+          donate.usdt=$DONATE_USDT
           release.storeFile=keystore/dosmotr-release.jks
           release.storePassword=$KEYSTORE_PASSWORD
           release.keyAlias=$KEY_ALIAS
@@ -125,10 +142,13 @@ jobs:
           PROPS
 
       - name: Run unit tests
-        run: ./gradlew ${{ env.GRADLE_ARGS }} testReleaseUnitTest
+        run: ./gradlew ${{ env.GRADLE_ARGS }} testDirectReleaseUnitTest
 
+      # `direct` is the flavour that goes on the Releases page: it carries the donation
+      # block, which is exactly what a store build may not have. The `store` APK is built
+      # by whoever uploads it to RuStore/Google Play — feature-21 automates that side.
       - name: Build the release APK
-        run: ./gradlew ${{ env.GRADLE_ARGS }} assembleRelease
+        run: ./gradlew ${{ env.GRADLE_ARGS }} assembleDirectRelease
 
       # An unsigned or debug-signed APK installs fine on a fresh phone and then refuses
       # to update the real one, so it is worth failing the release over.
@@ -136,8 +156,8 @@ jobs:
         run: |
           set -euo pipefail
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
-          "$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
-          mv app/build/outputs/apk/release/app-release.apk \
+          "$apksigner" verify --print-certs app/build/outputs/apk/direct/release/app-direct-release.apk
+          mv app/build/outputs/apk/direct/release/app-direct-release.apk \
              "dosmotr-${{ steps.version.outputs.name }}.apk"
 
       - name: Publish the release

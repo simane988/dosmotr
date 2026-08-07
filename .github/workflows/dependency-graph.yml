@@ -46,4 +46,4 @@ jobs:
           # this workflow leaves on the base branch, and two different filters produce a
           # diff full of packages that were never added.
           DEPENDENCY_GRAPH_INCLUDE_PROJECTS: '^:app$'
-          DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS: '^releaseRuntimeClasspath$'
+          DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS: '^directReleaseRuntimeClasspath$'

@@ -276,7 +276,7 @@ Follow CLAUDE.md. In particular:
    do the sensible thing rather than stopping.
 3. Update the tests the change touches — the fakes mirror the DAO, so DAO
    changes mean \`FakeTrackerDao\` too.
-4. Verify before committing: \`./gradlew testDebugUnitTest\`, \`./gradlew :app:lintDebug\`
+4. Verify before committing: \`./gradlew testDirectDebugUnitTest\`, \`./gradlew :app:lintDirectDebug\`
    and \`./gradlew detekt\`. Run \`scripts/emulator.sh test\` when the change is UI
    or DAO. Fix what fails.
 5. Commit in English, conventional-commits style.

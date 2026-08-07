@@ -16,9 +16,10 @@
 scripts/install-phone.sh                      # debug с develop
 scripts/install-phone.sh feature/foo          # с этой ветки
 scripts/install-phone.sh --production         # подписанный release вместо debug
+scripts/install-phone.sh --store              # флейвор store (без блока донатов)
 ```
 
-`install-phone.sh` пинит `ANDROID_SERIAL` на **физическое** устройство: `installDebug`
+`install-phone.sh` пинит `ANDROID_SERIAL` на **физическое** устройство: install-задача
 ставит APK на все подключённые разом, так что с поднятым эмулятором сборка уезжает и
 туда. Ветку переключает только на чистом дереве (без stash — потерянный stash дороже),
 подтягивает `--ff-only` и по выходу возвращает ту, на которой были, чем бы сборка ни
@@ -73,7 +74,7 @@ scripts/grind.sh --once     # одна задача от выбора до мё�
    учитывает то, что изменила предыдущая. Мусорный ответ → откат на порядок бэклога,
    баги вперёд.
 2. **Автор.** Сессия с фиксированным `--session-id`, читает `todo/{bugs,features}/<id>.md`,
-   ветвится от `develop`, пишет код, гоняет `testDebugUnitTest` / `lintDebug` / `detekt`,
+   ветвится от `develop`, пишет код, гоняет `testDirectDebugUnitTest` / `lintDirectDebug` / `detekt`,
    коммитит и заканчивает на `close-task.sh <id> --pr-only` — PR открыт, ничего не
    смёржено.
    Перед этим сессия пишет **описание PR по-русски** в `todo/.grind/<id>.pr.md`

@@ -8,3 +8,13 @@ sdk.dir=/home/YOU/Android/Sdk
 # manual entry works, but a URL with an empty token fails the build on purpose.
 backend.url=https://dosmotr.g3ck0-tech.ru
 backend.token=
+
+# Where donations go. Only the `direct` flavour ever reads these — a `store` build gets
+# empty strings compiled in, because the law and the store policies forbid it the wallet
+# entirely, not just the button. Leave them out and the block simply does not appear,
+# which is what CI and a fresh clone build.
+# They live here rather than in the source because a public repository makes an address
+# impossible to change without a release, and easy to swap in a fork.
+donate.url=
+donate.sbp=
+donate.usdt=

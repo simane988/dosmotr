@@ -26,6 +26,15 @@ if (backendUrl.isNotEmpty() && backendToken.isEmpty()) {
     error("backend.url is set but backend.token is empty — see the dosmotr-backend repo")
 }
 
+// Donation destinations. Not secrets — a wallet address is public by nature — but an
+// address written into a public repository is one that cannot be changed without a
+// release, and an open invitation to swap it in a fork. Missing values are fine: the
+// `direct` build then simply has nothing to show and hides the block, which is exactly
+// what CI builds.
+val donateUrl: String = localProps.getProperty("donate.url", "").trim()
+val donateSbp: String = localProps.getProperty("donate.sbp", "").trim()
+val donateUsdt: String = localProps.getProperty("donate.usdt", "").trim()
+
 // version.properties is committed and CI rewrites it on a release branch, so the version
 // in a build always matches a commit someone can point at.
 val versionProps = Properties().apply {
@@ -71,6 +80,35 @@ android {
                 keyAlias = localProps.getProperty("release.keyAlias")
                 keyPassword = localProps.getProperty("release.keyPassword")
             }
+        }
+    }
+
+    // Two ways of getting the app, not two apps: same applicationId, same signing key, so
+    // an APK from GitHub Releases updates to a store build (and back) without losing the
+    // library. The only difference is whether donations may be mentioned at all.
+    //
+    //   store  — RuStore and Google Play. No donation block, and no wallet address inside
+    //            the APK: part 7 of article 14 of 259-FZ forbids not just accepting digital
+    //            currency but distributing information about accepting it, and an external
+    //            payment link reads to Google Play as a way around its billing.
+    //   direct — GitHub Releases and IzzyOnDroid, where neither restriction applies.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("store") {
+            dimension = "distribution"
+            buildConfigField("boolean", "DONATIONS_ENABLED", "false")
+            // Empty rather than absent so the same code compiles in both flavours — and
+            // empty means the strings genuinely are not in the store APK.
+            buildConfigField("String", "DONATE_URL", "\"\"")
+            buildConfigField("String", "DONATE_SBP", "\"\"")
+            buildConfigField("String", "DONATE_USDT", "\"\"")
+        }
+        create("direct") {
+            dimension = "distribution"
+            buildConfigField("boolean", "DONATIONS_ENABLED", "true")
+            buildConfigField("String", "DONATE_URL", "\"$donateUrl\"")
+            buildConfigField("String", "DONATE_SBP", "\"$donateSbp\"")
+            buildConfigField("String", "DONATE_USDT", "\"$donateUsdt\"")
         }
     }
 
@@ -237,6 +275,14 @@ dependencies {
 // the phone without a build to use. Reinstalling afterwards keeps the latest debug
 // build on the device without also leaving the instrumentation APK behind (which the
 // `leaveApksInstalledAfterRun` flag would). finalizedBy runs even when tests fail.
-tasks.matching { it.name == "connectedDebugAndroidTest" }.configureEach {
-    finalizedBy("installDebug")
+//
+// Matched by pattern, not by name: product flavours renamed the task to
+// connectedDirectDebugAndroidTest / connectedStoreDebugAndroidTest, and an equality check
+// against the old name would quietly match nothing — leaving the phone bare again with
+// no error to explain it. The flavour is carried over into the install task so each
+// variant reinstalls itself.
+val connectedDebugTest = Regex("^connected(\\w+)DebugAndroidTest$")
+tasks.matching { connectedDebugTest.matches(it.name) }.configureEach {
+    val flavour = connectedDebugTest.matchEntire(name)?.groupValues?.get(1).orEmpty()
+    finalizedBy("install${flavour}Debug")
 }
