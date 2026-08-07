@@ -85,4 +85,41 @@ class SettingsStoreTest {
 
         assertTrue(openStore().notificationsAsked.first())
     }
+
+    // --- feature-18 ---
+
+    /**
+     * On by default, because a crash nobody hears about is a crash nobody fixes — and the
+     * switch in «О приложении» is right next to the sentence explaining what is sent.
+     */
+    @Test
+    fun crashReportsAreOnUntilSomeoneTurnsThemOff() = runTest {
+        assertTrue(openStore().crashReportsEnabled.first())
+    }
+
+    /** Half the DOD of the switch: it has to survive a restart, not just a recomposition. */
+    @Test
+    fun theCrashReportSwitchOutlivesTheStoreThatWroteIt() = runTest {
+        openStore().setCrashReportsEnabled(false)
+        closeStores()
+
+        assertFalse(openStore().crashReportsEnabled.first())
+    }
+
+    /**
+     * `first_launch` is the denominator of the first-session funnel, so it must be written
+     * to disk rather than kept in memory: a process restart would otherwise count as a new
+     * install and the ratio would quietly exceed 100 %.
+     */
+    @Test
+    fun theFirstLaunchFlagOutlivesTheStoreThatWroteIt() = runTest {
+        // One store at a time on one file: DataStore refuses a second instance outright,
+        // which is what closeStores() above is for.
+        val store = openStore()
+        assertFalse(store.firstLaunchReported.first())
+        store.setFirstLaunchReported(true)
+        closeStores()
+
+        assertTrue(openStore().firstLaunchReported.first())
+    }
 }

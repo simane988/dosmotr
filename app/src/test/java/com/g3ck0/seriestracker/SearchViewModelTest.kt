@@ -5,6 +5,7 @@ import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import com.g3ck0.seriestracker.fake.FakeCatalogApi
+import com.g3ck0.seriestracker.fake.FakeTelemetry
 import com.g3ck0.seriestracker.fake.FakeTrackerDao
 import com.g3ck0.seriestracker.fake.MainDispatcherRule
 import com.g3ck0.seriestracker.fake.awaitUntil
@@ -33,9 +34,10 @@ class SearchViewModelTest {
 
     private val dao = FakeTrackerDao()
     private val api = FakeCatalogApi()
+    private val telemetry = FakeTelemetry()
 
     private fun viewModel(apiKey: String = "key") =
-        SearchViewModel(TrackerRepository(dao, api, apiKey))
+        SearchViewModel(TrackerRepository(dao, api, apiKey), telemetry)
 
     @Test
     fun `trending loads on open`() = runTest {

@@ -8,6 +8,7 @@ import androidx.work.Configuration
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.g3ck0.seriestracker.data.backup.AutoBackupManager
+import com.g3ck0.seriestracker.data.telemetry.CrashReporting
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,8 @@ class SeriesTrackerApp : Application(), ImageLoaderFactory, Configuration.Provid
 
     @Inject lateinit var autoBackup: AutoBackupManager
 
+    @Inject lateinit var crashReporting: CrashReporting
+
     /** Outlives every screen, like the application itself; nothing here is cancelled. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -47,6 +50,11 @@ class SeriesTrackerApp : Application(), ImageLoaderFactory, Configuration.Provid
         // earlier install does not survive "clear data", and reading the setting is a
         // file read, so it cannot happen on the main thread here.
         scope.launch { autoBackup.syncSchedule() }
+        // Collection is off in the manifest and switched on from the stored setting here,
+        // not the other way round: a build that starts reporting and is corrected a moment
+        // later has already reported. Same reason as the schedule above — the setting is a
+        // file read, so it cannot happen on the main thread.
+        scope.launch { crashReporting.sync() }
     }
 
     /**

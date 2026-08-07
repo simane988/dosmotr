@@ -9,6 +9,9 @@ import com.g3ck0.seriestracker.data.repository.DeletedTitle
 import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import com.g3ck0.seriestracker.data.settings.SettingsStore
+import com.g3ck0.seriestracker.data.telemetry.Telemetry
+import com.g3ck0.seriestracker.data.telemetry.TelemetryEvent
+import com.g3ck0.seriestracker.data.telemetry.telemetryParam
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -59,6 +62,7 @@ data class LibraryUiState(
 class LibraryViewModel @Inject constructor(
     private val repository: TrackerRepository,
     private val settings: SettingsStore,
+    private val telemetry: Telemetry,
 ) : ViewModel() {
 
     private val filters = MutableStateFlow(LibraryFilters())
@@ -129,6 +133,25 @@ class LibraryViewModel @Inject constructor(
                 initialValue = LibraryUiState(),
             )
 
+    init {
+        reportFirstLaunch()
+    }
+
+    /**
+     * Sends `first_launch` once per install and remembers that it went out.
+     *
+     * Here rather than in the Application because the library is the first screen and this
+     * is the first ViewModel built, and because a ViewModel can be driven by a JVM test
+     * while an Application cannot. The flag is persisted, so reinstalling counts as a new
+     * install and restarting does not — which is what makes the funnel in
+     * product/07-metrics.md count people rather than launches.
+     */
+    private fun reportFirstLaunch() = viewModelScope.launch {
+        if (settings.firstLaunchReported.first()) return@launch
+        settings.setFirstLaunchReported(true)
+        telemetry.event(TelemetryEvent.FIRST_LAUNCH)
+    }
+
     /**
      * Fills [LibraryUiState.suggestions] with what is trending, for the empty state to show.
      *
@@ -157,7 +180,10 @@ class LibraryViewModel @Inject constructor(
      */
     fun addSuggestion(item: SearchItem) = viewModelScope.launch {
         repository.add(item)
-            .onSuccess { openTitleRequests.send(it) }
+            .onSuccess {
+                telemetry.event(TelemetryEvent.TITLE_ADDED, item.mediaType.telemetryParam)
+                openTitleRequests.send(it)
+            }
             .onFailure { message.value = LibraryMessage("Не удалось добавить «${item.name}»") }
     }
 
@@ -173,6 +199,7 @@ class LibraryViewModel @Inject constructor(
         year: String?,
     ) = viewModelScope.launch {
         repository.addManual(name, mediaType, episodesPerSeason, runtimeMinutes, year)
+        telemetry.event(TelemetryEvent.MANUAL_ADD)
         message.value = LibraryMessage("«$name» добавлен вручную")
     }
 
@@ -203,6 +230,7 @@ class LibraryViewModel @Inject constructor(
 
     fun markNextWatched(titleId: String) = viewModelScope.launch {
         val episode = repository.markNextWatched(titleId)
+        if (episode != null) telemetry.event(TelemetryEvent.EPISODE_WATCHED)
         message.value = LibraryMessage(
             if (episode == null) {
                 "Все серии уже отмечены"
@@ -249,9 +277,19 @@ class LibraryViewModel @Inject constructor(
      * Records that the notification permission has been asked for. Called on every outcome
      * of the system dialog, refusal included — the prompt is an offer, not a demand, and
      * one that keeps coming back is the reason people turn notifications off for good.
+     *
+     * [granted] is only reported, never stored: how many people say yes is what decides
+     * whether the prompt is worth showing at all, and the system is the authority on the
+     * answer anyway.
      */
-    fun markNotificationsAsked() = viewModelScope.launch {
+    fun markNotificationsAsked(granted: Boolean) = viewModelScope.launch {
         settings.setNotificationsAsked(true)
+        if (granted) telemetry.event(TelemetryEvent.NOTIFICATIONS_ALLOWED)
+    }
+
+    /** The overflow menu's «О приложении». No parameter — it is a screen, not a choice. */
+    fun aboutOpened() {
+        telemetry.event(TelemetryEvent.ABOUT_OPENED)
     }
 
     /**

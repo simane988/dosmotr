@@ -15,11 +15,15 @@ class FakeSettingsStore(
     notificationsAsked: Boolean = false,
     autoBackupEnabled: Boolean = true,
     backupFolderUri: String? = null,
+    crashReportsEnabled: Boolean = true,
+    firstLaunchReported: Boolean = false,
 ) : SettingsStore {
 
     private val asked = MutableStateFlow(notificationsAsked)
     private val backupEnabled = MutableStateFlow(autoBackupEnabled)
     private val folderUri = MutableStateFlow(backupFolderUri)
+    private val crashReports = MutableStateFlow(crashReportsEnabled)
+    private val firstLaunch = MutableStateFlow(firstLaunchReported)
     private val backupAt = MutableStateFlow<Long?>(null)
     private val backupLocation = MutableStateFlow<String?>(null)
 
@@ -41,6 +45,18 @@ class FakeSettingsStore(
         folderUri.value = value
     }
 
+    override val crashReportsEnabled: Flow<Boolean> = crashReports
+
+    override suspend fun setCrashReportsEnabled(value: Boolean) {
+        crashReports.value = value
+    }
+
+    override val firstLaunchReported: Flow<Boolean> = firstLaunch
+
+    override suspend fun setFirstLaunchReported(value: Boolean) {
+        firstLaunch.value = value
+    }
+
     override val lastBackupAt: Flow<Long?> = backupAt
 
     override val lastBackupLocation: Flow<String?> = backupLocation
@@ -56,6 +72,10 @@ class FakeSettingsStore(
     val storedAutoBackupEnabled: Boolean get() = backupEnabled.value
 
     val storedBackupFolderUri: String? get() = folderUri.value
+
+    val storedCrashReportsEnabled: Boolean get() = crashReports.value
+
+    val storedFirstLaunchReported: Boolean get() = firstLaunch.value
 
     val storedLastBackupAt: Long? get() = backupAt.value
 

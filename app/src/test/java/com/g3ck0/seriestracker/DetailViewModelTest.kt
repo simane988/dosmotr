@@ -5,6 +5,7 @@ import app.cash.turbine.test
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
 import com.g3ck0.seriestracker.fake.FakeCatalogApi
+import com.g3ck0.seriestracker.fake.FakeTelemetry
 import com.g3ck0.seriestracker.fake.FakeTrackerDao
 import com.g3ck0.seriestracker.fake.MainDispatcherRule
 import com.g3ck0.seriestracker.fake.awaitUntil
@@ -34,9 +35,10 @@ class DetailViewModelTest {
     private val dao = FakeTrackerDao()
     private val api = FakeCatalogApi()
     private val repository = TrackerRepository(dao, api, "key")
+    private val telemetry = FakeTelemetry()
 
     private fun viewModel(titleId: String = "tv_1") =
-        DetailViewModel(repository, SavedStateHandle(mapOf("titleId" to titleId)))
+        DetailViewModel(repository, telemetry, SavedStateHandle(mapOf("titleId" to titleId)))
 
     private fun seedSeries(episodesLoaded: Boolean = true) {
         dao.seedTitle(tvTitle(id = "tv_1", episodesLoaded = episodesLoaded))

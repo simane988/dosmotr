@@ -6,6 +6,9 @@ import com.g3ck0.seriestracker.data.local.MediaType
 import com.g3ck0.seriestracker.data.local.WatchStatus
 import com.g3ck0.seriestracker.data.repository.SearchItem
 import com.g3ck0.seriestracker.data.repository.TrackerRepository
+import com.g3ck0.seriestracker.data.telemetry.Telemetry
+import com.g3ck0.seriestracker.data.telemetry.TelemetryEvent
+import com.g3ck0.seriestracker.data.telemetry.telemetryParam
 import com.g3ck0.seriestracker.ui.common.UserError
 import com.g3ck0.seriestracker.ui.common.toUserError
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,6 +35,7 @@ data class SearchUiState(
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val repository: TrackerRepository,
+    private val telemetry: Telemetry,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SearchUiState(hasBackend = repository.hasBackend))
@@ -72,6 +76,11 @@ class SearchViewModel @Inject constructor(
         _state.value = _state.value.copy(loading = true, error = null)
         repository.search(query)
             .onSuccess {
+                // The event says a search ran, and that is all it says: [query] is the
+                // most personal string in the app and never leaves the device. Reported
+                // after the request rather than per keystroke — the debounce above is what
+                // decides that a search happened.
+                telemetry.event(TelemetryEvent.SEARCH_PERFORMED)
                 _state.value = _state.value.copy(
                     loading = false,
                     results = it,
@@ -107,7 +116,10 @@ class SearchViewModel @Inject constructor(
 
     fun add(item: SearchItem, status: WatchStatus = WatchStatus.PLANNED) = viewModelScope.launch {
         repository.add(item, status)
-            .onSuccess { _state.value = _state.value.copy(message = "«${item.name}» добавлен") }
+            .onSuccess {
+                telemetry.event(TelemetryEvent.TITLE_ADDED, item.mediaType.telemetryParam)
+                _state.value = _state.value.copy(message = "«${item.name}» добавлен")
+            }
             .onFailure {
                 val error = it.toUserError("Не удалось добавить")
                 _state.value = _state.value.copy(message = error.combined)
@@ -122,6 +134,7 @@ class SearchViewModel @Inject constructor(
         year: String?,
     ) = viewModelScope.launch {
         repository.addManual(name, mediaType, episodesPerSeason, runtimeMinutes, year)
+        telemetry.event(TelemetryEvent.MANUAL_ADD)
         _state.value = _state.value.copy(message = "«$name» добавлен вручную")
     }
 

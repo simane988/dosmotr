@@ -662,36 +662,27 @@ class LibraryContentTest {
         compose.waitUntil(timeoutMillis = 10_000) { undone == 1 }
     }
 
+    /**
+     * The dialog itself is `LibraryScreen`'s since it gained the crash-report switch and
+     * with it a ViewModel — the stateless half only asks for it. What it shows, TMDB's
+     * sentence included, is asserted in `AboutDialogTest`.
+     */
     @Test
-    fun topMenuOpensAboutWithTheTmdbAttribution() {
+    fun topMenuAsksForTheAboutDialog() {
+        var opened = 0
         compose.setThemedContent {
-            LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
+            LibraryContent(
+                state = LibraryUiState(loading = false, items = listOf(series())),
+                onAbout = { opened++ },
+            )
         }
 
         compose.onNodeWithTag(LibraryTags.TOP_MENU).performClick()
         compose.onNodeWithTag(LibraryTags.ABOUT).performClick()
 
-        compose.onNodeWithTag(AboutTags.DIALOG).assertExists()
-        compose.onNodeWithTag(AboutTags.VERSION).assertIsDisplayed()
-        compose.onNodeWithTag(AboutTags.REPO).assertIsDisplayed()
-        compose.onNodeWithText("github.com/simane988/dosmotr").assertIsDisplayed()
-        // TMDB requires this sentence verbatim, so the test spells it out in full.
-        compose.onNodeWithText(
-            "This application uses TMDB and the TMDB APIs but is not endorsed, " +
-                "certified, or otherwise approved by TMDB."
-        ).assertIsDisplayed()
-    }
-
-    @Test
-    fun aboutClosesOnItsButton() {
-        compose.setThemedContent {
-            LibraryContent(state = LibraryUiState(loading = false, items = listOf(series())))
-        }
-
-        compose.onNodeWithTag(LibraryTags.TOP_MENU).performClick()
-        compose.onNodeWithTag(LibraryTags.ABOUT).performClick()
-        compose.onNodeWithTag(AboutTags.CLOSE).performClick()
-
+        compose.waitUntil(timeoutMillis = 10_000) { opened == 1 }
+        // And nothing Hilt-shaped is built here, which is what keeps this test running
+        // without a component at all.
         compose.onNodeWithTag(AboutTags.DIALOG).assertDoesNotExist()
     }
 

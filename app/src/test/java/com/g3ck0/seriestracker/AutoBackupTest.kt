@@ -7,6 +7,7 @@ import com.g3ck0.seriestracker.fake.FakeAutoBackupStorage
 import com.g3ck0.seriestracker.fake.FakeBackupFolder
 import com.g3ck0.seriestracker.fake.FakeBackupSource
 import com.g3ck0.seriestracker.fake.FakeSettingsStore
+import com.g3ck0.seriestracker.fake.FakeTelemetry
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -25,9 +26,10 @@ class AutoBackupTest {
     private val source = FakeBackupSource()
     private val storage = FakeAutoBackupStorage()
     private val scheduler = FakeAutoBackupScheduler()
+    private val telemetry = FakeTelemetry()
 
     private fun manager(settings: FakeSettingsStore) =
-        AutoBackupManager(source, settings, storage, scheduler)
+        AutoBackupManager(source, settings, storage, scheduler, telemetry)
 
     @Test
     fun aFreshInstallSchedulesTheWeeklyBackup() = runTest {
