@@ -63,10 +63,17 @@ die() { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
 
 # --- the emulator ------------------------------------------------------------------
 
-# Whose emulator is this? One that was already up is left up, the same rule emulator.sh
-# test follows: 2.3G held for the rest of the day is 2.3G Gradle does not get.
+# Whose emulator is this? One that was already up *in gui mode* is left up, the same rule
+# emulator.sh test follows: 2.3G held for the rest of the day is 2.3G Gradle does not get.
+#
+# The mode has to be part of the question, not just the presence of a serial. `emulator.sh
+# gui` below stops a headless emulator and boots a new one in its place, and an emulator
+# this run booted is this run's to shut down — checking for a serial alone would hand the
+# fresh one to nobody and leak it.
 OWN=1
-if scripts/emulator.sh serial >/dev/null 2>&1; then OWN=0; fi
+if scripts/emulator.sh serial >/dev/null 2>&1 && [[ "$(scripts/emulator.sh mode)" == gui ]]; then
+  OWN=0
+fi
 (( KEEP )) && OWN=0
 
 log "emulator"
@@ -115,11 +122,19 @@ sleep 5
 log "demo status bar"
 dev settings put global sysui_demo_allowed 1
 demo() { dev am broadcast -a com.android.systemui.demo "$@" >/dev/null; }
+# exit before enter: a second run on a device already in demo mode otherwise stacks the
+# icons rather than replacing them, and the frame comes back with two wifi glyphs.
+demo -e command exit
+sleep 2
 demo -e command enter
 demo -e command clock -e hhmm 1200
 demo -e command battery -e level 100 -e plugged false
-demo -e command network -e wifi show -e level 4
-demo -e command network -e mobile show -e datatype none -e level 4
+# One broadcast, not two. `fully true` drops the "connected but no internet" exclamation
+# off the wifi glyph — wrong on a store frame, and the one thing that differed between two
+# otherwise identical runs — and `mobile hide` drops the 3G that a wifi-only frame has no
+# business showing. Sent as two commands, the second does not replace the first: the bar
+# ends up with both slots drawn.
+demo -e command network -e wifi show -e level 4 -e fully true -e mobile hide
 demo -e command notifications -e visible false
 
 for s in window_animation_scale transition_animation_scale animator_duration_scale; do
@@ -269,7 +284,11 @@ sleep 1
 shot 05-search
 
 log "dark theme"
-tap desc "Моё" 2>/dev/null || dev input keyevent KEYCODE_BACK
+# No fallback here on purpose. The pill is drawn on every tab screen, and the BACK above
+# either closed the keyboard (still on Поиск) or popped back to Моё — the tab is on screen
+# either way. If it is not, the run is somewhere it does not think it is, and `tap` should
+# say so rather than press BACK and photograph whatever turns up.
+tap desc "Моё"
 sleep 1
 dev cmd uimode night yes >/dev/null
 sleep 3

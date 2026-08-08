@@ -12,6 +12,7 @@
 #   scripts/emulator.sh stop     # shut it down
 #   scripts/emulator.sh status   # is it up, in which mode, and what it costs in RAM
 #   scripts/emulator.sh serial   # print its adb serial and nothing else
+#   scripts/emulator.sh mode     # gui | headless | unknown
 #   scripts/emulator.sh test     # start on the GPU, run the suite, shut it down again
 #   scripts/emulator.sh test --headless   # the slow swiftshader path CI uses
 #   scripts/emulator.sh test --keep       # leave the emulator up afterwards
@@ -337,6 +338,11 @@ case "${1:-start}" in
   # Just the serial, for scripts that drive the AVD themselves — see screenshots.sh.
   # `adb devices` names it emulator-5554, which is not enough when a phone is plugged in.
   serial) serial_of_avd || die "$AVD_NAME is not running" ;;
+  # gui | headless | unknown. A caller that asks for one of the two modes has to know
+  # which one is live before it asks, because asking for the other restarts the emulator
+  # — and then it is the caller's to stop again. Pair it with `serial`: with nothing
+  # running this still answers from the mode file, which can be stale.
+  mode) running_mode ;;
   test) shift; cmd_test "$@" ;;
-  *) die "usage: $0 {start|gui|stop|status|serial|test [--headless|--gui] [--keep] [gradle args…]}" ;;
+  *) die "usage: $0 {start|gui|stop|status|serial|mode|test [--headless|--gui] [--keep] [gradle args…]}" ;;
 esac
