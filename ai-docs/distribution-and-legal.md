@@ -37,9 +37,20 @@ nothing is given in return (no feature, no badge, no thank-you), no amounts are 
 it supports *the author*, not the app or a feature. The moment a donation buys something
 it stops being a gift.
 
-CI, `release.yml`, `codeql.yml` and both scripts run **`direct` only** — it is the
-superset, so testing `store` as well would double every job to cover strictly less code.
-`storeRelease` is built when there is a store to upload it to (feature-21).
+CI, `codeql.yml` and both scripts run **`direct` only** — it is the superset, so testing
+`store` as well would double every job to cover strictly less code. `release.yml` is the one
+exception, because both flavours are shipped from there: it runs
+`testDirectReleaseUnitTest testStoreReleaseUnitTest` and builds
+`assembleDirectRelease assembleStoreRelease bundleStoreRelease` — the `direct` APK for the
+Releases page, the `store` AAB for Google Play, the `store` APK for RuStore. All three must
+carry one certificate or an update across channels fails, so the workflow compares the SHA-256
+signer fingerprints (`apksigner verify --print-certs` for the APKs, `keytool -printcert
+-jarfile` for the AAB, which is jar-signed and unreadable to apksigner) and stops the release
+if they differ. It also greps the unzipped dex of the store artifacts for the `donate.*`
+values and fails if one is there — the emptiness of those fields is a line in
+`build.gradle.kts`, and this is the file that gets uploaded. The store artifacts go to
+`actions/upload-artifact`, not to the Release: that page is the `direct` channel. The manual
+half — accounts, uploads, Data Safety — is `store/publishing.md`.
 
 ## Crash reporting
 

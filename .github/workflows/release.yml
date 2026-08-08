@@ -1,8 +1,11 @@
 name: Release
 
 # A release branch is what publishes. Cutting release/1.2.0 off develop is the whole
-# trigger: this workflow verifies the branch, stamps the version, builds the signed APK,
-# attaches it to a GitHub Release and then opens the two merge-back pull requests.
+# trigger: this workflow verifies the branch, stamps the version, builds the three signed
+# artifacts (the `direct` APK for the Releases page, the `store` AAB for Google Play and the
+# `store` APK for RuStore), attaches the `direct` one to a GitHub Release, keeps the other
+# two as run artifacts for the manual upload, and then opens the two merge-back pull
+# requests.
 #
 # release/** is not a trigger in ci.yml — the `verify` job below calls that workflow
 # instead, so a release branch runs the test suite once, here, rather than in a second
@@ -141,24 +144,117 @@ jobs:
           release.keyPassword=$KEY_PASSWORD
           PROPS
 
+      # Both flavours, because from here on both are shipped. Everywhere else in CI only
+      # `direct` is tested (it is the superset), but the code that differs between them is
+      # exactly the code nothing else covers: the donation block and `Telemetry`.
       - name: Run unit tests
-        run: ./gradlew ${{ env.GRADLE_ARGS }} testDirectReleaseUnitTest
+        run: ./gradlew ${{ env.GRADLE_ARGS }} testDirectReleaseUnitTest testStoreReleaseUnitTest
 
-      # `direct` is the flavour that goes on the Releases page: it carries the donation
-      # block, which is exactly what a store build may not have. The `store` APK is built
-      # by whoever uploads it to RuStore/Google Play — feature-21 automates that side.
-      - name: Build the release APK
-        run: ./gradlew ${{ env.GRADLE_ARGS }} assembleDirectRelease
-
-      # An unsigned or debug-signed APK installs fine on a fresh phone and then refuses
-      # to update the real one, so it is worth failing the release over.
-      - name: Verify the signature
+      # Three artifacts out of one invocation. `direct` APK is what the Releases page carries
+      # and what IzzyOnDroid picks up; Play accepts an AAB and nothing else; RuStore accepts
+      # both and an APK is the simpler half. `assembleStoreRelease` and `bundleStoreRelease`
+      # share `minifyStoreReleaseWithR8`, so this is two R8 runs (one per flavour), not three.
+      - name: Build the release artifacts
         run: |
           set -euo pipefail
+          # A store build without it has the Firebase SDK compiled in and no project to talk
+          # to, so `FirebaseTelemetry` no-ops and no R8 mapping is uploaded: shipped stack
+          # traces stay unreadable. Not fatal — CI and forks must keep building (see
+          # ai-docs/distribution-and-legal.md) — but it must not be found out after upload.
+          if [ ! -f app/src/store/google-services.json ]; then
+            echo "::warning::no app/src/store/google-services.json — the store artifacts ship without crash reporting"
+          fi
+          ./gradlew ${{ env.GRADLE_ARGS }} \
+            assembleDirectRelease assembleStoreRelease bundleStoreRelease
+
+      # An unsigned or debug-signed artifact installs fine on a fresh phone and then refuses
+      # to update the real one, so it is worth failing the release over. The three also have
+      # to carry the *same* certificate: someone who installed from GitHub and later takes the
+      # store build (or the other way round) gets a bare "app not installed" if they differ.
+      # For Play this key is the upload key rather than the app signing key, which changes who
+      # can recover it, not whether these three have to agree.
+      - name: Verify the signatures
+        run: |
+          set -euo pipefail
+          version='${{ steps.version.outputs.name }}'
+          mv app/build/outputs/apk/direct/release/app-direct-release.apk "dosmotr-$version.apk"
+          mv app/build/outputs/apk/store/release/app-store-release.apk "dosmotr-$version-store.apk"
+          mv app/build/outputs/bundle/storeRelease/app-store-release.aab "dosmotr-$version-store.aab"
+
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
-          "$apksigner" verify --print-certs app/build/outputs/apk/direct/release/app-direct-release.apk
-          mv app/build/outputs/apk/direct/release/app-direct-release.apk \
-             "dosmotr-${{ steps.version.outputs.name }}.apk"
+          fingerprints=$(
+            for apk in "dosmotr-$version.apk" "dosmotr-$version-store.apk"; do
+              "$apksigner" verify --print-certs "$apk" |
+                sed -n 's/^Signer #1 certificate SHA-256 digest: //p'
+            done
+            # An AAB is jar-signed, not APK-signed, so apksigner cannot read it at all.
+            # keytool prints the same digest colon-separated and upper case.
+            keytool -printcert -jarfile "dosmotr-$version-store.aab" |
+              sed -n 's/^[[:space:]]*SHA256: //p' | head -1 | tr -d ':' | tr 'A-Z' 'a-z'
+          )
+          echo "$fingerprints"
+          if [ "$(echo "$fingerprints" | sort -u | wc -l)" != 1 ] ||
+             [ -z "$(echo "$fingerprints" | head -1)" ]; then
+            echo "::error::the three artifacts are not signed with one key"
+            exit 1
+          fi
+
+      # The DOD of feature-21, and part 7 of article 14 of 259-ФЗ for the wallet in
+      # particular: a store build may carry no donation destination — not the link, not the
+      # SBP phone, not the USDT address. `store` compiles the three fields as empty strings,
+      # but that is a line in build.gradle.kts and these are the files that get uploaded, so
+      # they are checked rather than trusted. The values are only ever tested for, never
+      # printed, and the dex is unzipped to a file instead of piped: `grep -q` closes the pipe
+      # early, which under pipefail would turn a match into a failed check.
+      - name: Check the flavours are what they claim
+        env:
+          DONATE_URL: ${{ secrets.DONATE_URL }}
+          DONATE_SBP: ${{ secrets.DONATE_SBP }}
+          DONATE_USDT: ${{ secrets.DONATE_USDT }}
+        run: |
+          set -euo pipefail
+          version='${{ steps.version.outputs.name }}'
+          for artifact in "dosmotr-$version-store.apk" "dosmotr-$version-store.aab"; do
+            dex=$(mktemp -d)
+            unzip -qo "$artifact" '*.dex' -d "$dex"
+            for name in DONATE_URL DONATE_SBP DONATE_USDT; do
+              if [ -n "${!name}" ] && grep -aqrF -- "${!name}" "$dex"; then
+                echo "::error::$artifact carries $name — a store build may not"
+                exit 1
+              fi
+            done
+            rm -rf "$dex"
+          done
+
+          # The mirror image, and the reason the warning above this job is not enough: an
+          # empty destination is a supported state, so a `direct` release that lost the block
+          # builds green and ships silently wrong.
+          if [ -n "$DONATE_URL" ]; then
+            dex=$(mktemp -d)
+            unzip -qo "dosmotr-$version.apk" '*.dex' -d "$dex"
+            if ! grep -aqrF -- "$DONATE_URL" "$dex"; then
+              echo "::error::dosmotr-$version.apk has no donation link — the direct build lost its block"
+              exit 1
+            fi
+            rm -rf "$dex"
+          fi
+
+      # Not attached to the GitHub Release on purpose: that page is the `direct` channel, and
+      # a store APK sitting next to it is the build without the donation block that someone
+      # installs by mistake. They go to the run's artifacts, which is where the RuStore and
+      # Play Console uploads take them from — see store/publishing.md. 90 days covers a
+      # moderation round-trip and a resubmission. These embed `BACKEND_TOKEN` in BuildConfig
+      # exactly like the APK already published on the Releases page, so on a public repository
+      # this is the same exposure, not a new one.
+      - name: Upload the store artifacts for manual submission
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-release-${{ steps.version.outputs.name }}
+          path: |
+            dosmotr-${{ steps.version.outputs.name }}-store.aab
+            dosmotr-${{ steps.version.outputs.name }}-store.apk
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Publish the release
         env:

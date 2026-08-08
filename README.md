@@ -90,6 +90,11 @@ Coil · Navigation Compose. minSdk 26, compileSdk 35.
 `testStoreDebugUnitTest`, `connectedDirectDebugAndroidTest`. Просто `installDebug`
 больше нет.
 
+Релиз выпускает ветка `release/<x.y.z>`: CI сам правит `version.properties` и собирает
+три артефакта одним ключом — `direct` APK (прикладывается к GitHub Release), `store` AAB
+для Google Play и `store` APK для RuStore (последние два лежат в артефактах прогона, их
+забирает тот, кто загружает в магазины). Порядок и ручные шаги — в `store/publishing.md`.
+
 ## Структура
 
 ```
