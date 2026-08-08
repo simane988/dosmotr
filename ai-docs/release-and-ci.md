@@ -15,7 +15,8 @@ permanent.
 ```
 feature/<name> ──▶ develop ──▶ release/<x.y.z> ──▶ master
                                      │
-                                     └─▶ GitHub Release + signed APK
+                                     └─▶ GitHub Release + `direct` APK
+                                     └─▶ run artifacts: `store` AAB + `store` APK
 ```
 
 - `master` is what is published — every commit on it is a shipped version.
@@ -90,7 +91,12 @@ Two mechanisms keep one commit from being tested twice, which is the whole point
   release branch must still be verified while its own merge-back PRs are open.
 - **`release/**` is not a trigger in `ci.yml`.** `release.yml`'s `verify` job calls it
   through `workflow_call` instead, so a release branch runs the suite once, inside the run
-  that builds the APK, rather than in a second pipeline racing it.
+  that builds the artifacts, rather than in a second pipeline racing it.
+
+`release.yml`'s `publish` job is also the only place `store` is built and tested — three
+artifacts from one Gradle invocation, one signing key, checked rather than assumed; see
+`ai-docs/distribution-and-legal.md` for the checks and `store/publishing.md` for what a human
+still has to do in the two consoles.
 
 `sync-develop` merges `origin/develop` into the branch **before** anything is tested, on
 feature pushes only, so a stale branch is tested as it will be merged. The merge commit
@@ -154,6 +160,9 @@ Three more are **optional**: `DONATE_URL`, `DONATE_SBP`, `DONATE_USDT`. They go 
 same `local.properties` and are what puts the donation block into the published APK —
 the Releases build is `direct`, so without them it ships with nothing to show. A release
 must not fail over a wallet address, so a missing one is a `::warning::` rather than an
-error; that warning is the only sign, and it is worth reading. Setting them does **not**
-leak anything into a store build: `store` compiles the fields as empty strings whatever
-`local.properties` says (see `ai-docs/distribution-and-legal.md`).
+error; that warning is the only sign, and it is worth reading. When `DONATE_URL` *is* set the
+job also fails if the built `direct` APK does not contain it — an empty destination is a
+supported state, so a build that lost the block is otherwise green and silently wrong.
+Setting them does **not** leak anything into a store build: `store` compiles the fields as
+empty strings whatever `local.properties` says, and the job proves it on the artifact before
+publishing (see `ai-docs/distribution-and-legal.md`).

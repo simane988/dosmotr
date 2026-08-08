@@ -246,7 +246,8 @@ Two consequences worth knowing, both of which cost a confused half hour once alr
 Nothing about the release is typed by hand. `.github/workflows/release.yml` reads the
 version out of the branch name, bumps `versionCode` in `version.properties`, commits that
 back with `[skip ci]` (without which the push would start the workflow over), builds the
-signed APK, attaches it to a GitHub Release tagged on the release branch, and finally opens
+three signed artifacts, attaches the `direct` APK to a GitHub Release tagged on the release
+branch (the two `store` ones stay as run artifacts for the manual upload), and finally opens
 the two merge-back PRs (`→ master`, then `→ develop`) with `gh pr merge --auto`.
 `version.properties` is the only place a version lives — `app/build.gradle.kts` reads it,
 so do not put literals back into `defaultConfig`, and do not edit the file on a release
