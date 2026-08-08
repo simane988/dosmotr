@@ -127,8 +127,9 @@ that age. It collects no personally identifying data and does not ask for an age
 ## Permissions
 
 - **Internet** — searching and refreshing title data.
-- **Notifications** (optional) — reminders about newly aired episodes; refusing affects
-  nothing but notifications.
+- **Notifications** (optional) — the permission is requested ahead of time, for reminders
+  about newly aired episodes. As of this revision the app sends no notifications at all:
+  the feature is not built yet, so refusing currently affects nothing.
 - The app requests no file access: export and import go through the system file picker,
   which grants access to the chosen file or folder only.
 
