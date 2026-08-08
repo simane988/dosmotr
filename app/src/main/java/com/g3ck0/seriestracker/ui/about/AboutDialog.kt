@@ -37,6 +37,8 @@ object AboutTags {
     const val DIALOG = "about:dialog"
     const val VERSION = "about:version"
     const val REPO = "about:repo"
+    const val SITE = "about:site"
+    const val PRIVACY = "about:privacy"
     const val TMDB_NOTICE = "about:tmdb"
     const val CLOSE = "about:close"
     const val DONATE_BLOCK = "about:donate"
@@ -110,6 +112,18 @@ fun AboutContent(
                 Text("Открытый исходный код:")
                 RepoLink()
 
+                // «Сайт проекта», never «Поддержать»: in a store build this is the only
+                // way out of the app towards the donation page, and a button that asks
+                // for money is exactly what Google reads as circumventing its billing.
+                // A link to the project's own page carries no such reading, and the site
+                // is where the store rules stop applying (product/09-donations.md, §2).
+                ExternalLink(label = "Сайт проекта", url = SITE_URL, tag = AboutTags.SITE)
+                ExternalLink(
+                    label = "Политика конфиденциальности",
+                    url = PRIVACY_URL,
+                    tag = AboutTags.PRIVACY,
+                )
+
                 // What makes the store build safe is not this branch but what it has to
                 // show: DONATE_* are compiled in as empty strings there, so the addresses
                 // are not in the APK at all, whatever R8 does with the code around them.
@@ -163,6 +177,15 @@ private const val TMDB_DISCLAIMER =
 private const val REPO_URL = "https://github.com/simane988/dosmotr"
 
 /**
+ * The project's page and its privacy policy, both published from `docs/` of the repository
+ * above through GitHub Pages. The policy needs a public URL that resolves for everyone,
+ * store listing and Data Safety form included, which is why it lives on the site rather
+ * than in the app.
+ */
+private const val SITE_URL = "https://simane988.github.io/dosmotr/"
+private const val PRIVACY_URL = "https://simane988.github.io/dosmotr/privacy/"
+
+/**
  * The one thing in this dialog that can be changed rather than read.
  *
  * The wording names what is sent *and* what is not, because "данные остаются на
@@ -202,6 +225,16 @@ private fun CrashReportsSwitch(enabled: Boolean, onChange: (Boolean) -> Unit) {
 /** Opens in the browser; the visible text is the URL without its scheme. */
 @Composable
 private fun RepoLink() {
+    ExternalLink(
+        label = REPO_URL.substringAfter("://"),
+        url = REPO_URL,
+        tag = AboutTags.REPO,
+    )
+}
+
+/** A line of text that opens [url] in the browser. */
+@Composable
+private fun ExternalLink(label: String, url: String, tag: String) {
     // Underlined as well as tinted: on a dynamic palette the primary colour can land
     // close enough to the body text that colour alone does not read as a link.
     val style = MaterialTheme.typography.bodyMedium.toSpanStyle().copy(
@@ -210,12 +243,12 @@ private fun RepoLink() {
     )
     Text(
         text = buildAnnotatedString {
-            withLink(LinkAnnotation.Url(REPO_URL, TextLinkStyles(style = style))) {
-                append(REPO_URL.substringAfter("://"))
+            withLink(LinkAnnotation.Url(url, TextLinkStyles(style = style))) {
+                append(label)
             }
         },
         style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.testTag(AboutTags.REPO),
+        modifier = Modifier.testTag(tag),
     )
 }
 

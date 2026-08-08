@@ -1,0 +1,41 @@
+# The project site, published by GitHub Pages from this directory.
+#
+# Everything here is public by definition — the repository is public and the site is
+# served from it. Nothing that belongs in local.properties belongs in this file.
+
+title: Досмотр
+description: Трекер сериалов и фильмов для Android. Библиотека остаётся на устройстве.
+lang: ru
+
+url: https://simane988.github.io
+baseurl: /dosmotr
+
+# One of the themes GitHub Pages builds without a plugin, so the site needs no build
+# step of its own and reads sanely on a phone as it is.
+theme: jekyll-theme-cayman
+
+# Where donations may be sent. Empty is a supported state and the state a fresh clone is
+# in: every page below hides the method whose value is empty, exactly as the app hides
+# its donation block when local.properties names no destination.
+#
+# The values are not secret — a wallet address is public by nature — but they are also
+# not in the APK: `store` builds compile them out entirely (259-ФЗ art. 14 §7 and the
+# stores' payment rules, see product/09-donations.md), which is why the site carries them
+# and the store build only links here.
+#
+# usdt_qr is a path under docs/assets/. Generate it once the address exists:
+#   qrencode -s 8 -m 2 -o docs/assets/usdt-trc20.png "<address>"
+donate:
+  cloudtips: ""
+  sbp: ""
+  usdt: ""
+  usdt_qr: ""
+
+contact_email: simane988@gmail.com
+releases_url: https://github.com/simane988/dosmotr/releases
+repo_url: https://github.com/simane988/dosmotr
+
+# Cayman puts these two buttons in the header of every page.
+show_downloads: false
+github:
+  is_project_page: true

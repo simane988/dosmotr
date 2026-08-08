@@ -5,10 +5,12 @@ import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.platform.app.InstrumentationRegistry
 import com.g3ck0.seriestracker.BuildConfig
 import com.g3ck0.seriestracker.ui.about.AboutContent
@@ -72,6 +74,38 @@ class AboutDialogTest {
         compose.onNodeWithTag(AboutTags.DONATE_COPY_CRYPTO).performClick()
 
         assertEquals(BuildConfig.DONATE_USDT, clipboardText())
+    }
+
+    // --- feature-19: the project site and the privacy policy ---
+
+    /**
+     * Both links are there whatever the flavour, and that is the point rather than an
+     * omission: `store` carries no donation block at all, so «Сайт проекта» is the only
+     * route from the app to a page that may name a destination, and the policy has to be
+     * reachable from inside the app because the store listing promises it is.
+     */
+    @Test
+    fun theSiteAndThePolicyAreLinkedInBothFlavours() {
+        compose.setThemedContent { AboutContent() }
+
+        compose.onNodeWithTag(AboutTags.SITE).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(AboutTags.PRIVACY).performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * The wording of that link is a store-policy decision, not a style one: a button asking
+     * for money inside a Play build reads as circumventing Google's billing, while a link
+     * to the project's own page does not (product/09-donations.md, §2). So the label is
+     * asserted exactly — «Поддержать» must not creep into it.
+     */
+    @Test
+    fun theSiteLinkNamesTheProjectRatherThanADonation() {
+        compose.setThemedContent { AboutContent() }
+
+        compose.onNodeWithTag(AboutTags.SITE).performScrollTo()
+            .assertTextEquals("Сайт проекта")
+        compose.onNodeWithTag(AboutTags.PRIVACY).performScrollTo()
+            .assertTextEquals("Политика конфиденциальности")
     }
 
     @Test
