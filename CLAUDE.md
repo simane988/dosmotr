@@ -41,6 +41,9 @@ scripts/emulator.sh test --headless   # the swiftshader path CI uses, for reprod
 scripts/emulator.sh test --keep       # leave it up afterwards
 FLAVOR=store scripts/emulator.sh test  # the store variant instead of direct
 
+scripts/screenshots.sh           # the six store frames, the 512px icon, the feature graphic
+scripts/screenshots.sh --no-build --keep   # reshoot on what is already installed
+
 ./gradlew :app:lintDirectDebug   # what CI's `static` job fails on
 ./gradlew detekt                 # applied at the root, covers app/src entirely
 ./gradlew :app:updateLintBaselineDirectDebug  # after fixing (or accepting) findings
@@ -123,6 +126,43 @@ correctly too — which is what used to leave `test` silently on swiftshader.
 The emulator wants ~2.5G next to Gradle's ~2.8G, which does not fit in 8G. This machine
 carries a second swap file (`/swap2.img`, 8G) for exactly that; a run peaks around 5.6G
 of swap. Without it the OOM killer takes the build.
+
+### Store materials
+
+`store/` is the source of the listing, not a copy of it: `listing-ru.md` and
+`listing-en.md` (a draft — the app is Russian-only until stage 2), the six screenshots,
+`icon-512.png`, `feature-graphic.png` and `demo-library.json`. The consoles keep no
+history, so a line changed there and not here is a line nobody can explain later.
+
+`scripts/screenshots.sh` shoots all of it. Three things it does that a by-hand pass does
+not: SystemUI demo mode, so every frame carries the same 12:00 and a full battery; the
+library restored from `demo-library.json` through the app's own
+`BackupRepository.importFromJson`, so the same titles sit at the same progress; and
+animations pinned off. Two runs produce the same images. Targets are found by dumping the
+accessibility hierarchy rather than by remembered coordinates — Compose publishes its
+semantics, and a coordinate breaks silently the first time a padding changes.
+
+Both device-side steps live in `StoreAssetsTest`, which is **skipped unless
+`am instrument` passes `-e demoLibrary` / `-e iconOut`** — `connectedDirectDebugAndroidTest`
+runs it in CI and it does nothing. It is not run through Gradle because that task
+uninstalls both APKs when it finishes and would take the seeded library with it.
+
+Three constraints on the texts, all of which cost a rejection if broken:
+
+- **No donations, no wallet address, not even a hint.** The store build compiles the
+  destinations out (see "Distribution flavours"); part 7 of article 14 of 259-ФЗ forbids
+  distributing information about accepting digital currency, and Play reads an external
+  donate link as circumventing its payment policy. The listing is one more place the
+  ban applies.
+- **Nothing the build does not do.** Notifications are stage 1: the permission is asked
+  for, the reminders do not exist, so they must not be described.
+- **The TMDB sentence, verbatim and in English**, at the end of the full description —
+  the same string as `TMDB_DISCLAIMER` in `AboutDialog`.
+
+The Google Play title is capped at 30 characters, which «Досмотр — трекер сериалов и
+фильмов» (35) does not fit; Play gets «Досмотр: трекер сериалов» and RuStore the full
+one. The listing links to the site and the privacy policy from feature-19, so it cannot
+be filled in until those pages are published.
 
 ## Secrets and signing
 

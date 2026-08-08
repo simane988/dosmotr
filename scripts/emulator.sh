@@ -11,6 +11,7 @@
 #   scripts/emulator.sh gui      # boot in a window, on the host GPU, animations on
 #   scripts/emulator.sh stop     # shut it down
 #   scripts/emulator.sh status   # is it up, in which mode, and what it costs in RAM
+#   scripts/emulator.sh serial   # print its adb serial and nothing else
 #   scripts/emulator.sh test     # start on the GPU, run the suite, shut it down again
 #   scripts/emulator.sh test --headless   # the slow swiftshader path CI uses
 #   scripts/emulator.sh test --keep       # leave the emulator up afterwards
@@ -333,6 +334,9 @@ case "${1:-start}" in
   gui) cmd_start gui ;;
   stop) cmd_stop ;;
   status) cmd_status ;;
+  # Just the serial, for scripts that drive the AVD themselves — see screenshots.sh.
+  # `adb devices` names it emulator-5554, which is not enough when a phone is plugged in.
+  serial) serial_of_avd || die "$AVD_NAME is not running" ;;
   test) shift; cmd_test "$@" ;;
-  *) die "usage: $0 {start|gui|stop|status|test [--headless|--gui] [--keep] [gradle args…]}" ;;
+  *) die "usage: $0 {start|gui|stop|status|serial|test [--headless|--gui] [--keep] [gradle args…]}" ;;
 esac
