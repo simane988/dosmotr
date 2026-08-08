@@ -1,0 +1,1449 @@
+{
+  "version": 1,
+  "exported_at": "2025-08-01T12:00:00Z",
+  "app": "dosmotr",
+  "titles": [
+    {
+      "id": "tv_95396",
+      "tmdb_id": 95396,
+      "type": "TV",
+      "name": "Разделение",
+      "overview": "Руководство компании Lumon Industries придумало новый способ контролировать повседневную деятельность своих сотрудников — «процедуру разделения», отделяющую рабочие воспоминания от обычных. Марк соглашается на процедуру, но вскоре начинает сомневаться в правильности своего выбора.",
+      "poster_path": "/Ag7gBPnh8Cpn5xvCdPPA4RJRN1L.jpg",
+      "backdrop_path": "/ixgFmf1X59PUZam2qbAfskx2gQr.jpg",
+      "year": "2022",
+      "status": "WATCHING",
+      "tmdb_rating": 8.384,
+      "runtime_minutes": 48,
+      "added_at": 1751408000000,
+      "last_watched_at": 1753913600000,
+      "episodes": [
+        {
+          "season": 1,
+          "episode": 1,
+          "name": "Не стоит бояться ада",
+          "air_date": "2022-02-17",
+          "runtime_minutes": 57,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 1,
+          "episode": 2,
+          "name": "Полупетля",
+          "air_date": "2022-02-17",
+          "runtime_minutes": 53,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 1,
+          "episode": 3,
+          "name": "Вечность",
+          "air_date": "2022-02-24",
+          "runtime_minutes": 56,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 1,
+          "episode": 4,
+          "name": "Настоящий ты",
+          "air_date": "2022-03-03",
+          "runtime_minutes": 46,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 1,
+          "episode": 5,
+          "name": "Беспощадная жестокость отдела оптики и дизайна",
+          "air_date": "2022-03-10",
+          "runtime_minutes": 43,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 1,
+          "episode": 6,
+          "name": "Прятки",
+          "air_date": "2022-03-17",
+          "runtime_minutes": 40,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 1,
+          "episode": 7,
+          "name": "Дерзкий джаз",
+          "air_date": "2022-03-24",
+          "runtime_minutes": 49,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 1,
+          "episode": 8,
+          "name": "Что на ужин?",
+          "air_date": "2022-03-31",
+          "runtime_minutes": 46,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 1,
+          "episode": 9,
+          "name": "Настоящие мы",
+          "air_date": "2022-04-07",
+          "runtime_minutes": 40,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 2,
+          "episode": 1,
+          "name": "Здравствуйте, мисс Кобэл",
+          "air_date": "2025-01-16",
+          "runtime_minutes": 49,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 2,
+          "episode": 2,
+          "name": "До свидания, миссис Селвиг",
+          "air_date": "2025-01-23",
+          "runtime_minutes": 46,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 2,
+          "episode": 3,
+          "name": "Кто жив?",
+          "air_date": "2025-01-30",
+          "runtime_minutes": 54,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 2,
+          "episode": 4,
+          "name": "Лощина печали",
+          "air_date": "2025-02-06",
+          "runtime_minutes": 51,
+          "watched": true,
+          "watched_at": 1753913600000
+        },
+        {
+          "season": 2,
+          "episode": 5,
+          "name": "Троянский конь",
+          "air_date": "2025-02-13",
+          "runtime_minutes": 47,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 6,
+          "name": "Аттила",
+          "air_date": "2025-02-20",
+          "runtime_minutes": 48,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 7,
+          "name": "Чикхай Бардо",
+          "air_date": "2025-02-27",
+          "runtime_minutes": 50,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 8,
+          "name": "Сладкая желчь",
+          "air_date": "2025-03-06",
+          "runtime_minutes": 37,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 9,
+          "name": "Сверхурочное время",
+          "air_date": "2025-03-13",
+          "runtime_minutes": 45,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 10,
+          "name": "Колд-Харбор",
+          "air_date": "2025-03-20",
+          "runtime_minutes": 76,
+          "watched": false
+        }
+      ],
+      "notes": "Смотрим по средам."
+    },
+    {
+      "id": "tv_100088",
+      "tmdb_id": 100088,
+      "type": "TV",
+      "name": "Одни из нас",
+      "overview": "Спустя 20 лет после уничтожения современной цивилизации из-за пандемии, контрабандист Джоэл нанимается вывезти Элли, 14-летнюю девочку, из карантинной зоны. То, что начинается как непыльная работка, вскоре превращается в жестокое и душераздирающее путешествие, в течение которого Джоэлу и Элли придётся научиться доверять друг другу.",
+      "poster_path": "/69loIrm9JPpPRE3Akw4yRoitSYn.jpg",
+      "backdrop_path": "/acevLdSl5I2MK5RYAm7gwAndt1w.jpg",
+      "year": "2023",
+      "status": "WATCHING",
+      "tmdb_rating": 8.415,
+      "runtime_minutes": 57,
+      "added_at": 1752099200000,
+      "last_watched_at": 1753740800000,
+      "episodes": [
+        {
+          "season": 1,
+          "episode": 1,
+          "name": "Когда ты заблудился во тьме",
+          "air_date": "2023-01-15",
+          "runtime_minutes": 81,
+          "watched": true,
+          "watched_at": 1753740800000
+        },
+        {
+          "season": 1,
+          "episode": 2,
+          "name": "Заражённые",
+          "air_date": "2023-01-22",
+          "runtime_minutes": 53,
+          "watched": true,
+          "watched_at": 1753740800000
+        },
+        {
+          "season": 1,
+          "episode": 3,
+          "name": "Долгое-долгое время",
+          "air_date": "2023-01-29",
+          "runtime_minutes": 77,
+          "watched": true,
+          "watched_at": 1753740800000
+        },
+        {
+          "season": 1,
+          "episode": 4,
+          "name": "Пожалуйста, держи меня за руку",
+          "air_date": "2023-02-05",
+          "runtime_minutes": 47,
+          "watched": true,
+          "watched_at": 1753740800000
+        },
+        {
+          "season": 1,
+          "episode": 5,
+          "name": "Выдержать и выжить",
+          "air_date": "2023-02-12",
+          "runtime_minutes": 60,
+          "watched": true,
+          "watched_at": 1753740800000
+        },
+        {
+          "season": 1,
+          "episode": 6,
+          "name": "Родня",
+          "air_date": "2023-02-19",
+          "runtime_minutes": 61,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 7,
+          "name": "Оставшиеся позади",
+          "air_date": "2023-02-26",
+          "runtime_minutes": 57,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 8,
+          "name": "Когда мы в нужде",
+          "air_date": "2023-03-05",
+          "runtime_minutes": 52,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 9,
+          "name": "Ищи свет",
+          "air_date": "2023-03-12",
+          "runtime_minutes": 46,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 1,
+          "name": "Дни грядущие",
+          "air_date": "2025-04-13",
+          "runtime_minutes": 59,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 2,
+          "name": "Долиною",
+          "air_date": "2025-04-20",
+          "runtime_minutes": 57,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 3,
+          "name": "Путь",
+          "air_date": "2025-04-27",
+          "runtime_minutes": 57,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 4,
+          "name": "День первый",
+          "air_date": "2025-05-04",
+          "runtime_minutes": 53,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 5,
+          "name": "Почувствуй её любовь",
+          "air_date": "2025-05-11",
+          "runtime_minutes": 45,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 6,
+          "name": "Цена",
+          "air_date": "2025-05-18",
+          "runtime_minutes": 60,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 7,
+          "name": "Конвергенция",
+          "air_date": "2025-05-25",
+          "runtime_minutes": 50,
+          "watched": false
+        }
+      ]
+    },
+    {
+      "id": "tv_76479",
+      "tmdb_id": 76479,
+      "type": "TV",
+      "name": "Пацаны",
+      "overview": "2000-е, мир, где существуют супергерои. Они являются настоящими звёздами, которых все знают и обожают. Но за идеальным фасадом скрывается гораздо более мрачный мир – большинство героев в жизни не самые приятные люди. Для контроля за супергероями ЦРУ создаёт специальный отряд, неофициально известный как «Пацаны» – суровые члены которого всегда готовы поставить зазнавшегося героя на место самым жестоким способом.",
+      "poster_path": "/3NqlBDpWI83TgQ9nmeFwTVxEmtZ.jpg",
+      "backdrop_path": "/n6vVs6z8obNbExdD3QHTr4Utu1Z.jpg",
+      "year": "2019",
+      "status": "WATCHING",
+      "tmdb_rating": 8.44,
+      "runtime_minutes": 63,
+      "added_at": 1748816000000,
+      "last_watched_at": 1752963200000,
+      "episodes": [
+        {
+          "season": 1,
+          "episode": 1,
+          "name": "Такая игра",
+          "air_date": "2019-07-25",
+          "runtime_minutes": 62,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 1,
+          "episode": 2,
+          "name": "Вишенка",
+          "air_date": "2019-07-25",
+          "runtime_minutes": 59,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 1,
+          "episode": 3,
+          "name": "Получи!",
+          "air_date": "2019-07-25",
+          "runtime_minutes": 55,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 1,
+          "episode": 4,
+          "name": "Самка человека",
+          "air_date": "2019-07-25",
+          "runtime_minutes": 56,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 1,
+          "episode": 5,
+          "name": "Полезно для души",
+          "air_date": "2019-07-25",
+          "runtime_minutes": 60,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 1,
+          "episode": 6,
+          "name": "Невинные",
+          "air_date": "2019-07-25",
+          "runtime_minutes": 60,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 1,
+          "episode": 7,
+          "name": "Общество самосохранения",
+          "air_date": "2019-07-25",
+          "runtime_minutes": 56,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 1,
+          "episode": 8,
+          "name": "Ты меня нашёл",
+          "air_date": "2019-07-25",
+          "runtime_minutes": 66,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 2,
+          "episode": 1,
+          "name": "Понеслась",
+          "air_date": "2020-09-03",
+          "runtime_minutes": 63,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 2,
+          "episode": 2,
+          "name": "Толковая подготовка и планирование",
+          "air_date": "2020-09-03",
+          "runtime_minutes": 59,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 2,
+          "episode": 3,
+          "name": "Там, за холмом, с тысячей мечей наперевес",
+          "air_date": "2020-09-03",
+          "runtime_minutes": 61,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 2,
+          "episode": 4,
+          "name": "Ничто в мире не сравнится",
+          "air_date": "2020-09-10",
+          "runtime_minutes": 70,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 2,
+          "episode": 5,
+          "name": "Нам уже пора",
+          "air_date": "2020-09-17",
+          "runtime_minutes": 63,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 2,
+          "episode": 6,
+          "name": "К херам все двери",
+          "air_date": "2020-09-24",
+          "runtime_minutes": 66,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 2,
+          "episode": 7,
+          "name": "И швец, и жнец, и сам себе отец",
+          "air_date": "2020-10-01",
+          "runtime_minutes": 56,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 2,
+          "episode": 8,
+          "name": "Что я знаю",
+          "air_date": "2020-10-08",
+          "runtime_minutes": 70,
+          "watched": true,
+          "watched_at": 1752963200000
+        },
+        {
+          "season": 3,
+          "episode": 1,
+          "name": "Расплата",
+          "air_date": "2022-06-02",
+          "runtime_minutes": 64,
+          "watched": false
+        },
+        {
+          "season": 3,
+          "episode": 2,
+          "name": "Единственный в небесах",
+          "air_date": "2022-06-02",
+          "runtime_minutes": 62,
+          "watched": false
+        },
+        {
+          "season": 3,
+          "episode": 3,
+          "name": "Варварийский берег",
+          "air_date": "2022-06-02",
+          "runtime_minutes": 63,
+          "watched": false
+        },
+        {
+          "season": 3,
+          "episode": 4,
+          "name": "Славная пятилетка",
+          "air_date": "2022-06-09",
+          "runtime_minutes": 62,
+          "watched": false
+        },
+        {
+          "season": 3,
+          "episode": 5,
+          "name": "Последний раз взглянуть на этот лживый мир",
+          "air_date": "2022-06-16",
+          "runtime_minutes": 63,
+          "watched": false
+        },
+        {
+          "season": 3,
+          "episode": 6,
+          "name": "Геройгазм",
+          "air_date": "2022-06-23",
+          "runtime_minutes": 63,
+          "watched": false
+        },
+        {
+          "season": 3,
+          "episode": 7,
+          "name": "Вот зажгу я пару свеч — ты в постельку можешь лечь",
+          "air_date": "2022-06-30",
+          "runtime_minutes": 67,
+          "watched": false
+        },
+        {
+          "season": 3,
+          "episode": 8,
+          "name": "Только ярость добела",
+          "air_date": "2022-07-07",
+          "runtime_minutes": 64,
+          "watched": false
+        },
+        {
+          "season": 4,
+          "episode": 1,
+          "name": "Отдел грязных трюков",
+          "air_date": "2024-06-13",
+          "runtime_minutes": 66,
+          "watched": false
+        },
+        {
+          "season": 4,
+          "episode": 2,
+          "name": "Жизнь среди заразы",
+          "air_date": "2024-06-13",
+          "runtime_minutes": 62,
+          "watched": false
+        },
+        {
+          "season": 4,
+          "episode": 3,
+          "name": "Вейся, красный наш флаг",
+          "air_date": "2024-06-13",
+          "runtime_minutes": 61,
+          "watched": false
+        },
+        {
+          "season": 4,
+          "episode": 4,
+          "name": "Мудрость веков",
+          "air_date": "2024-06-20",
+          "runtime_minutes": 67,
+          "watched": false
+        },
+        {
+          "season": 4,
+          "episode": 5,
+          "name": "Берегись Бармаглота, сынок",
+          "air_date": "2024-06-27",
+          "runtime_minutes": 69,
+          "watched": false
+        },
+        {
+          "season": 4,
+          "episode": 6,
+          "name": "Грязное дело",
+          "air_date": "2024-07-04",
+          "runtime_minutes": 66,
+          "watched": false
+        },
+        {
+          "season": 4,
+          "episode": 7,
+          "name": "Свой человек внутри",
+          "air_date": "2024-07-11",
+          "runtime_minutes": 65,
+          "watched": false
+        },
+        {
+          "season": 4,
+          "episode": 8,
+          "name": "Финал четвертого сезона",
+          "air_date": "2024-07-18",
+          "runtime_minutes": 69,
+          "watched": false
+        },
+        {
+          "season": 5,
+          "episode": 1,
+          "name": "Пятнадцать дюймов чистого динамита",
+          "air_date": "2026-04-08",
+          "runtime_minutes": 64,
+          "watched": false
+        },
+        {
+          "season": 5,
+          "episode": 2,
+          "name": "«Шалости подростков»",
+          "air_date": "2026-04-08",
+          "runtime_minutes": 63,
+          "watched": false
+        },
+        {
+          "season": 5,
+          "episode": 3,
+          "name": "Все гады до единого",
+          "air_date": "2026-04-15",
+          "runtime_minutes": 66,
+          "watched": false
+        },
+        {
+          "season": 5,
+          "episode": 4,
+          "name": "Царь ада",
+          "air_date": "2026-04-22",
+          "runtime_minutes": 66,
+          "watched": false
+        },
+        {
+          "season": 5,
+          "episode": 5,
+          "name": "Одним махом",
+          "air_date": "2026-04-29",
+          "runtime_minutes": 69,
+          "watched": false
+        },
+        {
+          "season": 5,
+          "episode": 6,
+          "name": "Пусть падут небеса",
+          "air_date": "2026-05-06",
+          "runtime_minutes": 65,
+          "watched": false
+        },
+        {
+          "season": 5,
+          "episode": 7,
+          "name": "Французик, Самка и мужик по имени Молоко Матери",
+          "air_date": "2026-05-13",
+          "runtime_minutes": 71,
+          "watched": false
+        },
+        {
+          "season": 5,
+          "episode": 8,
+          "name": "Кровь и кость",
+          "air_date": "2026-05-20",
+          "runtime_minutes": 67,
+          "watched": false
+        }
+      ],
+      "rating": 8
+    },
+    {
+      "id": "tv_94605",
+      "tmdb_id": 94605,
+      "type": "TV",
+      "name": "Аркейн",
+      "overview": "В условиях глубоких разногласий между городами-близнецами, Пилтовером и Зауном, две сестры оказываются по разные стороны баррикад в войне технологий и убеждений.",
+      "poster_path": "/kVioUjk1SXGWblJNaKsIJcBqUcY.jpg",
+      "backdrop_path": "/q8eejQcg1bAqImEV8jh8RtBD4uH.jpg",
+      "year": "2021",
+      "status": "PLANNED",
+      "tmdb_rating": 8.753,
+      "runtime_minutes": 41,
+      "added_at": 1753308800000,
+      "last_watched_at": null,
+      "episodes": [
+        {
+          "season": 1,
+          "episode": 1,
+          "name": "Добро пожаловать в игру",
+          "air_date": "2021-11-06",
+          "runtime_minutes": 44,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 2,
+          "name": "Некоторые тайны лучше оставить в покое",
+          "air_date": "2021-11-06",
+          "runtime_minutes": 41,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 3,
+          "name": "Без насилия не будет перемен",
+          "air_date": "2021-11-06",
+          "runtime_minutes": 45,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 4,
+          "name": "С Днем Прогресса!",
+          "air_date": "2021-11-13",
+          "runtime_minutes": 41,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 5,
+          "name": "Каждый хочет стать мне врагом",
+          "air_date": "2021-11-13",
+          "runtime_minutes": 41,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 6,
+          "name": "Когда эти стены рушатся",
+          "air_date": "2021-11-13",
+          "runtime_minutes": 43,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 7,
+          "name": "Мальчик-спаситель",
+          "air_date": "2021-11-20",
+          "runtime_minutes": 41,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 8,
+          "name": "Масло и вода",
+          "air_date": "2021-11-20",
+          "runtime_minutes": 41,
+          "watched": false
+        },
+        {
+          "season": 1,
+          "episode": 9,
+          "name": "Чудовище, которое ты создал",
+          "air_date": "2021-11-20",
+          "runtime_minutes": 42,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 1,
+          "name": "Тяжела корона",
+          "air_date": "2024-11-09",
+          "runtime_minutes": 41,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 2,
+          "name": "Смотреть, как все горит",
+          "air_date": "2024-11-09",
+          "runtime_minutes": 40,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 3,
+          "name": "Наконец-то правильно назвала имя",
+          "air_date": "2024-11-09",
+          "runtime_minutes": 41,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 4,
+          "name": "Раскрасить город в синий цвет",
+          "air_date": "2024-11-16",
+          "runtime_minutes": 40,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 5,
+          "name": "Из камня, покрытого пузырями",
+          "air_date": "2024-11-16",
+          "runtime_minutes": 43,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 6,
+          "name": "Послание, скрытое в узоре",
+          "air_date": "2024-11-16",
+          "runtime_minutes": 40,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 7,
+          "name": "Притворись, что это в первый раз",
+          "air_date": "2024-11-23",
+          "runtime_minutes": 42,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 8,
+          "name": "Убийство — это цикл",
+          "air_date": "2024-11-23",
+          "runtime_minutes": 41,
+          "watched": false
+        },
+        {
+          "season": 2,
+          "episode": 9,
+          "name": "Грязь под твоими ногтями",
+          "air_date": "2024-11-23",
+          "runtime_minutes": 51,
+          "watched": false
+        }
+      ]
+    },
+    {
+      "id": "movie_693134",
+      "tmdb_id": 693134,
+      "type": "MOVIE",
+      "name": "Дюна: Часть вторая",
+      "overview": "Герцог Пол Атрейдес присоединяется к фременам, чтобы стать Муад Дибом, одновременно пытаясь остановить наступление войны.",
+      "poster_path": "/3aLghRkuJc9cs770fxo4a6YWht3.jpg",
+      "backdrop_path": "/eZ239CUp1d6OryZEBPnO2n87gMG.jpg",
+      "year": "2024",
+      "status": "COMPLETED",
+      "tmdb_rating": 8.1,
+      "runtime_minutes": 166,
+      "added_at": 1750544000000,
+      "last_watched_at": 1753481600000,
+      "movie_watched": true,
+      "episodes": [],
+      "rating": 9
+    },
+    {
+      "id": "tv_1396",
+      "tmdb_id": 1396,
+      "type": "TV",
+      "name": "Во все тяжкие",
+      "overview": "Школьный учитель химии Уолтер Уайт узнаёт, что болен раком лёгких. Учитывая сложное финансовое состояние дел семьи, а также перспективы, Уолтер решает заняться изготовлением метамфетамина. Для этого он привлекает своего бывшего ученика Джесси Пинкмана, когда-то исключённого из школы при активном содействии Уайта. Пинкман сам занимался варкой мета, но накануне, в ходе рейда УБН, он лишился подельника и лаборатории.",
+      "poster_path": "/gwB6E7Zi5L3J9WA2y0zLeKuc3ul.jpg",
+      "backdrop_path": "/tsRy63Mu5cu8etL1X7ZLyf7UP1M.jpg",
+      "year": "2008",
+      "status": "COMPLETED",
+      "tmdb_rating": 8.948,
+      "runtime_minutes": 48,
+      "added_at": 1728080000000,
+      "last_watched_at": 1750112000000,
+      "episodes": [
+        {
+          "season": 1,
+          "episode": 1,
+          "name": "Пилот",
+          "air_date": "2008-01-20",
+          "runtime_minutes": 59,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 1,
+          "episode": 2,
+          "name": "Кот в мешке...",
+          "air_date": "2008-01-27",
+          "runtime_minutes": 49,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 1,
+          "episode": 3,
+          "name": "...и мешок в реке",
+          "air_date": "2008-02-10",
+          "runtime_minutes": 49,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 1,
+          "episode": 4,
+          "name": "Раковый больной",
+          "air_date": "2008-02-17",
+          "runtime_minutes": 49,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 1,
+          "episode": 5,
+          "name": "Серое вещество",
+          "air_date": "2008-02-24",
+          "runtime_minutes": 49,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 1,
+          "episode": 6,
+          "name": "Пригоршня ничего",
+          "air_date": "2008-03-02",
+          "runtime_minutes": 49,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 1,
+          "episode": 7,
+          "name": "Бизнес «по-взрослому»",
+          "air_date": "2008-03-09",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 1,
+          "name": "Семьсот тридцать семь",
+          "air_date": "2009-03-08",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 2,
+          "name": "Попандос",
+          "air_date": "2009-03-15",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 3,
+          "name": "Укус мёртвой пчелы",
+          "air_date": "2009-03-22",
+          "runtime_minutes": 47,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 4,
+          "name": "На дне",
+          "air_date": "2009-03-29",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 5,
+          "name": "Бой товара",
+          "air_date": "2009-04-05",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 6,
+          "name": "Игра в прятки",
+          "air_date": "2009-04-12",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 7,
+          "name": "Чёрный и голубой",
+          "air_date": "2009-04-19",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 8,
+          "name": "Лучше звоните Солу",
+          "air_date": "2009-04-26",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 9,
+          "name": "Четыре дня отсутствия",
+          "air_date": "2009-05-03",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 10,
+          "name": "Конец бизнеса",
+          "air_date": "2009-05-10",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 11,
+          "name": "Мандала",
+          "air_date": "2009-05-17",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 12,
+          "name": "Феникс",
+          "air_date": "2009-05-24",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 2,
+          "episode": 13,
+          "name": "Альбукерке",
+          "air_date": "2009-05-31",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 1,
+          "name": "Хватит!",
+          "air_date": "2010-03-21",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 2,
+          "name": "Безымянный конь",
+          "air_date": "2010-03-28",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 3,
+          "name": "Я.П.Т. (Я переспала с Тедом)",
+          "air_date": "2010-04-04",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 4,
+          "name": "Зелёный свет",
+          "air_date": "2010-04-11",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 5,
+          "name": "Ещё",
+          "air_date": "2010-04-18",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 6,
+          "name": "Закат",
+          "air_date": "2010-04-25",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 7,
+          "name": "Одна минута",
+          "air_date": "2010-05-02",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 8,
+          "name": "Я вижу тебя",
+          "air_date": "2010-05-09",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 9,
+          "name": "По-кафкиански",
+          "air_date": "2010-05-16",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 10,
+          "name": "Муха",
+          "air_date": "2010-05-23",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 11,
+          "name": "Эбикью",
+          "air_date": "2010-05-30",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 12,
+          "name": "Полумеры",
+          "air_date": "2010-06-06",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 3,
+          "episode": 13,
+          "name": "Полная мера",
+          "air_date": "2010-06-13",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 1,
+          "name": "Канцелярский нож",
+          "air_date": "2011-07-17",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 2,
+          "name": "Тридцать восьмой, курносый",
+          "air_date": "2011-07-24",
+          "runtime_minutes": 46,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 3,
+          "name": "Открытый дом",
+          "air_date": "2011-07-31",
+          "runtime_minutes": 47,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 4,
+          "name": "Пулевые отверстия",
+          "air_date": "2011-08-07",
+          "runtime_minutes": 46,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 5,
+          "name": "Дробовик",
+          "air_date": "2011-08-14",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 6,
+          "name": "Загнанный в угол",
+          "air_date": "2011-08-21",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 7,
+          "name": "Проблемный пёс",
+          "air_date": "2011-08-28",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 8,
+          "name": "Братья",
+          "air_date": "2011-09-04",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 9,
+          "name": "Жучок",
+          "air_date": "2011-09-11",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 10,
+          "name": "Здоровье",
+          "air_date": "2011-09-18",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 11,
+          "name": "Фальшпол",
+          "air_date": "2011-09-25",
+          "runtime_minutes": 47,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 12,
+          "name": "Конец света",
+          "air_date": "2011-10-02",
+          "runtime_minutes": 46,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 4,
+          "episode": 13,
+          "name": "Без лица",
+          "air_date": "2011-10-09",
+          "runtime_minutes": 51,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 1,
+          "name": "Живи свободным или умри",
+          "air_date": "2012-07-15",
+          "runtime_minutes": 43,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 2,
+          "name": "Мадригал",
+          "air_date": "2012-07-22",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 3,
+          "name": "Опасные условия",
+          "air_date": "2012-07-29",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 4,
+          "name": "Пятьдесят один",
+          "air_date": "2012-08-05",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 5,
+          "name": "Мёртвый груз",
+          "air_date": "2012-08-12",
+          "runtime_minutes": 49,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 6,
+          "name": "Выкуп",
+          "air_date": "2012-08-19",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 7,
+          "name": "Произнеси моё имя",
+          "air_date": "2012-08-26",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 8,
+          "name": "Летящий над всем",
+          "air_date": "2012-09-02",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 9,
+          "name": "Кровавые деньги",
+          "air_date": "2013-08-11",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 10,
+          "name": "Зарытое",
+          "air_date": "2013-08-18",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 11,
+          "name": "Признания",
+          "air_date": "2013-08-25",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 12,
+          "name": "Бешеный пёс",
+          "air_date": "2013-09-01",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 13,
+          "name": "Тохаджилли",
+          "air_date": "2013-09-08",
+          "runtime_minutes": 47,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 14,
+          "name": "Озимандия",
+          "air_date": "2013-09-15",
+          "runtime_minutes": 48,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 15,
+          "name": "Гранитный штат",
+          "air_date": "2013-09-22",
+          "runtime_minutes": 54,
+          "watched": true,
+          "watched_at": 1750112000000
+        },
+        {
+          "season": 5,
+          "episode": 16,
+          "name": "Фелина",
+          "air_date": "2013-09-29",
+          "runtime_minutes": 56,
+          "watched": true,
+          "watched_at": 1750112000000
+        }
+      ],
+      "rating": 10
+    }
+  ]
+}
